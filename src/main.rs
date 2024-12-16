@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use clap::Parser;
 use dialoguer::{Confirm, FuzzySelect};
 use futures::future;
@@ -5,6 +6,7 @@ use itertools::Itertools;
 use regex::Regex;
 use std::error::Error;
 
+#[async_trait]
 trait Scraper {
     async fn try_search(query: &str, pages: usize) -> Result<Vec<String>, Box<dyn Error>>;
     async fn try_get_episodes(anime: &str) -> Result<Vec<usize>, Box<dyn Error>>;
@@ -25,6 +27,7 @@ struct Args {
     pages: usize,
 }
 
+#[async_trait]
 impl Scraper for AnimeFLVScraper {
     async fn try_search(query: &str, pages: usize) -> Result<Vec<String>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
@@ -112,11 +115,10 @@ impl Scraper for AnimeFLVScraper {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn run<T: Scraper>() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
-    let animes = AnimeFLVScraper::try_search(&args.query, args.pages).await?;
+    let animes = T::try_search(&args.query, args.pages).await?;
 
     let anime_index = FuzzySelect::new()
         .with_prompt("Elige un anime")
@@ -124,7 +126,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .interact()?;
     let anime = &animes[anime_index];
 
-    let episodes = AnimeFLVScraper::try_get_episodes(anime).await?;
+    let episodes = T::try_get_episodes(anime).await?;
 
     let episode_index = FuzzySelect::new()
         .with_prompt("Elige un episodio")
@@ -136,7 +138,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         print!("\x1B[2J\x1B[1;1H");
         println!("Anime: {}:", anime);
         println!("Episodio {}:\n", episode);
-        let mirrors = AnimeFLVScraper::try_get_mirrors(anime, *episode).await?;
+        let mirrors = T::try_get_mirrors(anime, *episode).await?;
         println!("{:#?}\n", mirrors);
 
         let next = Confirm::new()
@@ -153,4 +155,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("No hay más episodios");
 
     Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    run::<AnimeFLVScraper>().await
 }
