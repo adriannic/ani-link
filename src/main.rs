@@ -31,18 +31,14 @@ struct Args {
 impl Scraper for AnimeFLVScraper {
     async fn try_search(query: &str, pages: usize) -> Result<Vec<String>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
-        let client = reqwest::Client::new();
 
         let urls = (1..=pages)
             .map(|page| format!("https://www3.animeflv.net/browse?q={}&page={}", query, page))
             .collect_vec();
 
-        let bodies = future::join_all(urls.into_iter().map(|url| {
-            let client = &client;
-            async move {
-                let response = client.get(&url).send().await?;
-                response.text().await
-            }
+        let bodies = future::join_all(urls.into_iter().map(|url| async move {
+            let response = reqwest::get(&url).await?;
+            response.text().await
         }))
         .await
         .into_iter()
