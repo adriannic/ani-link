@@ -4,7 +4,7 @@ use dialoguer::{Confirm, FuzzySelect};
 use futures::future;
 use itertools::Itertools;
 use regex::Regex;
-use std::error::Error;
+use std::{error::Error, process::exit};
 
 #[async_trait]
 trait Scraper {
@@ -119,6 +119,11 @@ async fn run<T: Scraper>() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     let animes = T::try_search(&args.query, args.pages).await?;
+
+    if animes.is_empty() {
+        eprintln!("No se ha encontrado ningún anime que contenga la query especificada");
+        exit(1);
+    }
 
     let anime_index = FuzzySelect::new()
         .with_prompt("Elige un anime")
