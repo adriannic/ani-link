@@ -134,9 +134,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     for episode in episodes {
         print!("\x1B[2J\x1B[1;1H");
-        println!("Episodio {}:", episode);
+        println!("Anime: {}:", anime);
+        println!("Episodio {}:\n", episode);
         let mirrors = AnimeFLVScraper::try_get_mirrors(anime, *episode).await?;
-        println!("{:#?}", mirrors);
+        println!("{:#?}\n", mirrors);
 
         let next = Confirm::new()
             .with_prompt("Siguiente episodio?")
