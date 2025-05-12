@@ -3,26 +3,31 @@ use async_trait::async_trait;
 use futures::future;
 use itertools::Itertools;
 use regex::Regex;
+use reqwest::Client;
 use std::error::Error;
 
 pub struct AnimeFLVScraper;
 
 #[async_trait]
 impl Scraper for AnimeFLVScraper {
-    async fn try_search(query: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    async fn try_search(client: &Client, query: &str) -> Result<Vec<String>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
-        let pages = 10;
+        let pages = 200;
 
         let urls = (1..=pages)
             .map(|page| format!("https://www3.animeflv.net/browse?q={}&page={}", query, page))
             .collect_vec();
 
-        let bodies = future::join_all(urls.into_iter().map(|url| async move {
-            let response = reqwest::get(&url).await?;
-            response.text().await
+        let bodies = future::join_all(urls.into_iter().map(|url| {
+            let client = client.clone();
+            tokio::spawn(async move {
+                let response = client.get(&url).send().await?;
+                response.text().await
+            })
         }))
         .await
         .into_iter()
+        .filter_map(|request| request.ok())
         .filter_map(|request| request.ok())
         .join("\n\n");
 
@@ -36,9 +41,11 @@ impl Scraper for AnimeFLVScraper {
         Ok(animes)
     }
 
-    async fn try_get_episodes(anime: &str) -> Result<Vec<usize>, Box<dyn Error>> {
+    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>> {
         let pattern = Regex::new("var episodes = .*?;")?;
-        let anime = reqwest::get(format!("https://www3.animeflv.net/anime/{}", anime))
+        let anime = client
+            .get(format!("https://www3.animeflv.net/anime/{}", anime))
+            .send()
             .await?
             .text()
             .await?;
@@ -65,14 +72,20 @@ impl Scraper for AnimeFLVScraper {
         Ok(episodes)
     }
 
-    async fn try_get_mirrors(anime: &str, episode: usize) -> Result<Vec<String>, Box<dyn Error>> {
-        let response = reqwest::get(format!(
-            "https://www3.animeflv.net/ver/{}-{}",
-            anime, episode
-        ))
-        .await?
-        .text()
-        .await?;
+    async fn try_get_mirrors(
+        client: &Client,
+        anime: &str,
+        episode: usize,
+    ) -> Result<Vec<String>, Box<dyn Error>> {
+        let response = client
+            .get(format!(
+                "https://www3.animeflv.net/ver/{}-{}",
+                anime, episode
+            ))
+            .send()
+            .await?
+            .text()
+            .await?;
 
         let pattern = Regex::new("\"code\":\".*?\"")?;
 
