@@ -14,7 +14,7 @@ mod animeav1scraper;
 mod animeflvscraper;
 mod scraper;
 
-const WHITELIST: [&str; 4] = ["ok.ru", "mp4upload", "hqq.tv", "my.mail.ru"];
+const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -94,8 +94,8 @@ async fn run<T: Scraper>(args: Args) -> Result<(), Box<dyn Error>> {
             println!(
                 "No se ha podido abrir el episodio en mpv, utiliza uno de los siguientes mirrors:"
             );
-            println!("{:#?}\n", mirrors);
         }
+        println!("{:#?}\n", mirrors);
 
         let next = Confirm::new()
             .with_prompt("Siguiente episodio?")
