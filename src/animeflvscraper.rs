@@ -1,4 +1,4 @@
-use crate::Scraper;
+use crate::{scraper::Anime, Scraper};
 use async_trait::async_trait;
 use futures::future;
 use itertools::Itertools;
@@ -10,7 +10,7 @@ pub struct AnimeFLVScraper;
 
 #[async_trait]
 impl Scraper for AnimeFLVScraper {
-    async fn try_search(client: &Client, query: &str) -> Result<Vec<String>, Box<dyn Error>> {
+    async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
         let pages = 200;
 
@@ -33,7 +33,14 @@ impl Scraper for AnimeFLVScraper {
 
         let animes = pattern
             .find_iter(&bodies)
-            .map(|found| found.as_str()[8..found.as_str().len() - 1].into())
+            .map(|found| {
+                let url: String = found.as_str()[8..found.as_str().len() - 1].into();
+                let name = url.replace("-", " ");
+                Anime {
+                    url,
+                    name,
+                }
+            })
             .sorted()
             .dedup()
             .collect_vec();
