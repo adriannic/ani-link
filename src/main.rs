@@ -75,7 +75,14 @@ async fn run<T: Scraper>(args: Args) -> Result<(), Box<dyn Error>> {
         println!("Intentando abrir en mpv...");
         let success = viewable.iter().any(|mirror| {
             println!("Intentando {}...", mirror);
-            Command::new("mpv")
+
+            let mut command = if cfg!(target_os = "windows") {
+                Command::new("mpv.exe")
+            } else {
+                Command::new("mpv")
+            };
+
+            command
                 .arg(mirror)
                 .output()
                 .ok()
