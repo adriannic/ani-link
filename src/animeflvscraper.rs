@@ -36,10 +36,7 @@ impl Scraper for AnimeFLVScraper {
             .map(|found| {
                 let url: String = found.as_str()[8..found.as_str().len() - 1].into();
                 let name = url.replace("-", " ");
-                Anime {
-                    url,
-                    name,
-                }
+                Anime { url, name }
             })
             .sorted()
             .dedup()
