@@ -5,11 +5,16 @@ use dialoguer::{Confirm, FuzzySelect};
 use itertools::Itertools;
 use reqwest::Client;
 use scraper::{Scraper, ScraperImpl};
-use std::{error::Error, process::exit};
+use std::{
+    error::Error,
+    process::{exit, Command},
+};
 
 mod animeav1scraper;
 mod animeflvscraper;
 mod scraper;
+
+const WHITELIST: [&str; 4] = ["ok.ru", "mp4upload", "hqq.tv", "my.mail.ru"];
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -61,7 +66,29 @@ async fn run<T: Scraper>(args: Args) -> Result<(), Box<dyn Error>> {
         println!("Anime: {}:", anime_name);
         println!("Episodio {}:", episode);
         let mirrors = T::try_get_mirrors(&client, &anime.url, *episode).await?;
-        println!("{:#?}\n", mirrors);
+
+        let viewable = mirrors
+            .iter()
+            .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+            .collect_vec();
+
+        println!("Intentando abrir en mpv...");
+        let success = viewable.iter().any(|mirror| {
+            println!("Intentando {}...", mirror);
+            Command::new("mpv")
+                .arg(mirror)
+                .output()
+                .ok()
+                .and_then(|output| output.status.code().filter(|&code| code == 0))
+                .is_some()
+        });
+
+        if !success {
+            println!(
+                "No se ha podido abrir el episodio en mpv, utiliza uno de los siguientes mirrors:"
+            );
+            println!("{:#?}\n", mirrors);
+        }
 
         let next = Confirm::new()
             .with_prompt("Siguiente episodio?")
