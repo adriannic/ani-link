@@ -3,8 +3,9 @@ use std::{error::Error, fmt};
 use async_trait::async_trait;
 use clap::ValueEnum;
 use reqwest::Client;
+use strum_macros::EnumIter;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct Anime {
     pub url: String,
     pub name: String,
@@ -16,11 +17,17 @@ impl fmt::Display for Anime {
     }
 }
 
-#[derive(ValueEnum, Clone, Debug)]
+#[derive(ValueEnum, Clone, Debug, EnumIter, Copy)]
 #[clap(rename_all = "PascalCase")]
 pub enum ScraperImpl {
-    AnimeFLVScraper,
     AnimeAV1Scraper,
+    AnimeFLVScraper,
+}
+
+impl fmt::Display for ScraperImpl {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[async_trait]

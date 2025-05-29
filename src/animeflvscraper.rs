@@ -12,7 +12,7 @@ pub struct AnimeFLVScraper;
 impl Scraper for AnimeFLVScraper {
     async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
-        let pages = 200;
+        let pages = 2;
 
         let urls = (1..=pages)
             .map(|page| format!("https://www3.animeflv.net/browse?q={}&page={}", query, page))
