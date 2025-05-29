@@ -1,4 +1,3 @@
-use crate::{scraper::Anime, Scraper};
 use async_trait::async_trait;
 use futures::future;
 use itertools::Itertools;
@@ -6,13 +5,15 @@ use regex::Regex;
 use reqwest::Client;
 use std::error::Error;
 
+use crate::scraper::{Anime, Scraper};
+
 pub struct AnimeFLVScraper;
 
 #[async_trait]
 impl Scraper for AnimeFLVScraper {
     async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
-        let pages = 2;
+        let pages = 5;
 
         let urls = (1..=pages)
             .map(|page| format!("https://www3.animeflv.net/browse?q={}&page={}", query, page))

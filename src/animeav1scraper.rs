@@ -1,4 +1,3 @@
-use crate::{scraper::Anime, Scraper};
 use async_trait::async_trait;
 use futures::future;
 use itertools::Itertools;
@@ -7,12 +6,14 @@ use reqwest::Client;
 use scraper::{Html, Selector};
 use std::error::Error;
 
+use crate::scraper::{Anime, Scraper};
+
 pub struct AnimeAV1Scraper;
 
 #[async_trait]
 impl Scraper for AnimeAV1Scraper {
     async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>> {
-        let pages = 2;
+        let pages = 5;
 
         let urls = (1..=pages)
             .map(|page| {
