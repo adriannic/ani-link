@@ -117,6 +117,7 @@ async fn run<T: Scraper>() -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    Args::parse();
     print!("{esc}c", esc = 27 as char);
     eprint!("{esc}c", esc = 27 as char);
     let scrapers = ScraperImpl::iter().collect_vec();
