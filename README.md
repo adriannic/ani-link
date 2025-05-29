@@ -1,6 +1,6 @@
 # Ani-link
 
-An AnimeFLV scraper I created just for fun.
+A scraper I created just for fun.
 
 ## DISCLAIMER
 
