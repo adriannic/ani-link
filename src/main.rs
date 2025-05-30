@@ -1,19 +1,24 @@
-use app::App;
-use clap::Parser;
+use crate::main_menu::main_menu;
+use config::Config;
+use reqwest::Client;
 use std::error::Error;
 
-mod animeav1scraper;
-mod animeflvscraper;
-mod app;
+mod config;
+mod main_menu;
 mod scraper;
-
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let args = Args::parse();
+    let config = Config::init()?;
 
-    App::new(args).run().await
+    println!("{:?}", config);
+
+    let client = Client::new();
+    let mut term = ratatui::init();
+
+    main_menu(&config, &client, &mut term).await?;
+
+    ratatui::restore();
+
+    Ok(())
 }

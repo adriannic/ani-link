@@ -6,7 +6,7 @@ use reqwest::Client;
 use scraper::{Html, Selector};
 use std::error::Error;
 
-use crate::scraper::{Anime, Scraper};
+use super::{anime::Anime, Scraper};
 
 pub struct AnimeAV1Scraper;
 

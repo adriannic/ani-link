@@ -5,7 +5,7 @@ use regex::Regex;
 use reqwest::Client;
 use std::error::Error;
 
-use crate::scraper::{Anime, Scraper};
+use super::{anime::Anime, Scraper};
 
 pub struct AnimeFLVScraper;
 
