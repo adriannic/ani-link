@@ -1,11 +1,11 @@
 use options::options;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent};
-use ratatui::layout::{Constraint, Layout};
+use ratatui::layout::{Alignment, Constraint, Layout};
 use ratatui::prelude::CrosstermBackend;
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols::border;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, List, ListDirection, ListState, StatefulWidget};
+use ratatui::widgets::{Block, List, ListDirection, ListState, Paragraph, StatefulWidget};
 use ratatui::Terminal;
 use reqwest::Client;
 use search::search;
@@ -67,21 +67,53 @@ pub async fn main_menu(
 
     loop {
         terminal.draw(|frame| {
-            let vertical = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
+            // Divide areas
+            let horizontal = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
 
-            let [main_menu_area, right_area] = vertical.areas(frame.area());
+            let [main_menu_area, right_area] = horizontal.areas(frame.area());
 
-            let right_title =
-                Line::from(format!("Ani-link v{}", env!("CARGO_PKG_VERSION")).bold()).centered();
+            let vertical = Layout::vertical([
+                Constraint::Fill(1),
+                Constraint::Length(7),
+                Constraint::Fill(1),
+            ]);
+
+            let [_, banner_area, _] = vertical.areas(right_area);
+
+            // Render banner
+            let right_banner = Paragraph::new(
+                "
+ █████╗ ███╗   ██╗██╗      ██╗     ██╗███╗   ██╗██╗  ██╗
+██╔══██╗████╗  ██║██║      ██║     ██║████╗  ██║██║ ██╔╝
+███████║██╔██╗ ██║██║█████╗██║     ██║██╔██╗ ██║█████╔╝ 
+██╔══██║██║╚██╗██║██║╚════╝██║     ██║██║╚██╗██║██╔═██╗ 
+██║  ██║██║ ╚████║██║      ███████╗██║██║ ╚████║██║  ██╗
+╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝      ╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
+",
+            )
+            .block(Block::new())
+            .bold()
+            .green()
+            .centered();
+
+            frame.render_widget(right_banner, banner_area);
+
+            // Render right block
+            let right_title = Line::from(
+                format!(" Ani-link v{} ", env!("CARGO_PKG_VERSION"))
+                    .bold()
+                    .white(),
+            )
+            .centered();
 
             let right_instructions = Line::from(vec![
-                " Subir ".white(),
+                " Subir: ".white(),
                 " <UpArrow | K> ".green().bold(),
-                " Bajar ".white(),
+                " Bajar: ".white(),
                 " <DownArrow | J> ".green().bold(),
-                " Confirmar ".white(),
+                " Confirmar: ".white(),
                 " <Enter | L> ".green().bold(),
-                " Salir ".white(),
+                " Salir: ".white(),
                 " <Esc | Q> ".green().bold(),
             ]);
 
@@ -93,7 +125,11 @@ pub async fn main_menu(
 
             frame.render_widget(right_block, right_area);
 
+            // Render Main menu option list
+            let list_title = Line::from(" Menú principal ".bold().white()).centered();
+
             let list_block = Block::bordered()
+                .title(list_title)
                 .border_set(border::THICK)
                 .border_style(Style::new().blue());
 
