@@ -44,7 +44,7 @@ impl fmt::Display for MainMenuSelection {
 impl MainMenuSelection {
     pub async fn run(
         self,
-        config: &Config,
+        config: &mut Config,
         client: &Client,
         terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     ) -> Result<bool, Box<dyn Error>> {
@@ -58,7 +58,7 @@ impl MainMenuSelection {
 }
 
 pub async fn main_menu(
-    config: &Config,
+    config: &mut Config,
     client: &Client,
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
 ) -> Result<(), Box<dyn Error>> {
@@ -93,7 +93,7 @@ pub async fn main_menu(
             )
             .block(Block::new())
             .bold()
-            .green()
+            .blue()
             .centered();
 
             frame.render_widget(right_banner, banner_area);
@@ -107,21 +107,21 @@ pub async fn main_menu(
             .centered();
 
             let right_instructions = Line::from(vec![
-                " Subir: ".white(),
-                " <UpArrow | K> ".green().bold(),
-                " Bajar: ".white(),
-                " <DownArrow | J> ".green().bold(),
-                " Confirmar: ".white(),
-                " <Enter | L> ".green().bold(),
-                " Salir: ".white(),
-                " <Esc | Q> ".green().bold(),
+                " Subir:".white(),
+                " ↑ K ".blue().bold(),
+                " Bajar:".white(),
+                " ↓ J ".blue().bold(),
+                " Confirmar:".white(),
+                " → L Enter ".blue().bold(),
+                " Salir:".white(),
+                " ← H Q ".blue().bold(),
             ]);
 
             let right_block = Block::bordered()
                 .title(right_title)
                 .title_bottom(right_instructions.centered())
                 .border_set(border::THICK)
-                .border_style(Style::new().blue());
+                .border_style(Style::new().green());
 
             frame.render_widget(right_block, right_area);
 
@@ -131,7 +131,7 @@ pub async fn main_menu(
             let list_block = Block::bordered()
                 .title(list_title)
                 .border_set(border::THICK)
-                .border_style(Style::new().blue());
+                .border_style(Style::new().green());
 
             let items = MainMenuSelection::iter().map(|scraper| scraper.to_string());
 
@@ -147,14 +147,9 @@ pub async fn main_menu(
 
         if let Event::Key(KeyEvent { code, .. }) = event::read()? {
             match code {
-                KeyCode::Char('q') | KeyCode::Esc => break,
-                KeyCode::Char('j') | KeyCode::Down => {
-                    selected.select_next();
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    selected.select_previous();
-                }
-                KeyCode::Char('l') | KeyCode::Enter => {
+                KeyCode::Up | KeyCode::Char('k') => selected.select_previous(),
+                KeyCode::Down | KeyCode::Char('j') => selected.select_next(),
+                KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
                     if let Some(i) = selected.selected() {
                         let option = MainMenuSelection::iter().nth(i).unwrap();
                         if option.run(config, client, terminal).await? {
@@ -162,6 +157,7 @@ pub async fn main_menu(
                         }
                     }
                 }
+                KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('q') => break,
                 _ => {}
             };
         }
