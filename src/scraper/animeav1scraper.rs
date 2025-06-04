@@ -8,20 +8,17 @@ use std::error::Error;
 
 use super::{anime::Anime, Scraper};
 
-pub struct AnimeAV1Scraper;
+pub struct AnimeAv1Scraper;
 
 #[async_trait]
-impl Scraper for AnimeAV1Scraper {
-    async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>> {
-        let pages = 5;
-
+impl Scraper for AnimeAv1Scraper {
+    async fn try_search(
+        client: &Client,
+        query: &str,
+        pages: usize,
+    ) -> Result<Vec<Anime>, Box<dyn Error>> {
         let urls = (1..=pages)
-            .map(|page| {
-                format!(
-                    "https://animeav1.com/catalogo?search={}&page={}",
-                    query, page
-                )
-            })
+            .map(|page| format!("https://animeav1.com/catalogo?search={query}&page={page}"))
             .collect_vec();
 
         let bodies = future::join_all(urls.into_iter().map(|url| {
@@ -33,8 +30,8 @@ impl Scraper for AnimeAV1Scraper {
         }))
         .await
         .into_iter()
-        .filter_map(|request| request.ok())
-        .filter_map(|request| request.ok())
+        .filter_map(Result::ok)
+        .filter_map(Result::ok)
         .join("\n\n");
 
         let fragment = Html::parse_fragment(&bodies);
@@ -60,7 +57,7 @@ impl Scraper for AnimeAV1Scraper {
 
     async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>> {
         let anime = client
-            .get(format!("https://animeav1.com{}", anime))
+            .get(format!("https://animeav1.com{anime}"))
             .send()
             .await?
             .text()
@@ -88,7 +85,7 @@ impl Scraper for AnimeAV1Scraper {
         episode: usize,
     ) -> Result<Vec<String>, Box<dyn Error>> {
         let response = client
-            .get(format!("https://animeav1.com{}/{}", anime, episode))
+            .get(format!("https://animeav1.com{anime}/{episode}"))
             .send()
             .await?
             .text()

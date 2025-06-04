@@ -4,6 +4,7 @@ use std::io::Write;
 
 use dirs::config_dir;
 use figment::providers::Format;
+use figment::providers::Serialized;
 use figment::providers::Toml;
 use figment::Figment;
 use serde::Deserialize;
@@ -17,12 +18,21 @@ pub struct Config {
     pub pages: usize,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            scraper: ScraperImpl::AnimeAv1Scraper,
+            pages: 40,
+        }
+    }
+}
+
 impl Config {
     pub fn init() -> Result<Self, Box<dyn Error>> {
         let mut config_path = config_dir().expect("Config path not found");
         config_path.push("ani-link.toml");
 
-        let config: Config = Figment::new()
+        let config: Config = Figment::from(Serialized::defaults(Config::default()))
             .merge(Toml::file(config_path.clone()))
             .extract()?;
 

@@ -7,16 +7,19 @@ use std::error::Error;
 
 use super::{anime::Anime, Scraper};
 
-pub struct AnimeFLVScraper;
+pub struct AnimeFlvScraper;
 
 #[async_trait]
-impl Scraper for AnimeFLVScraper {
-    async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>> {
+impl Scraper for AnimeFlvScraper {
+    async fn try_search(
+        client: &Client,
+        query: &str,
+        pages: usize,
+    ) -> Result<Vec<Anime>, Box<dyn Error>> {
         let pattern = Regex::new("\"/anime/.*?\"")?;
-        let pages = 5;
 
         let urls = (1..=pages)
-            .map(|page| format!("https://www3.animeflv.net/browse?q={}&page={}", query, page))
+            .map(|page| format!("https://www3.animeflv.net/browse?q={query}&page={page}"))
             .collect_vec();
 
         let bodies = future::join_all(urls.into_iter().map(|url| {
@@ -28,15 +31,15 @@ impl Scraper for AnimeFLVScraper {
         }))
         .await
         .into_iter()
-        .filter_map(|request| request.ok())
-        .filter_map(|request| request.ok())
+        .filter_map(Result::ok)
+        .filter_map(Result::ok)
         .join("\n\n");
 
         let animes = pattern
             .find_iter(&bodies)
             .map(|found| {
                 let url: String = found.as_str()[8..found.as_str().len() - 1].into();
-                let name = url.replace("-", " ");
+                let name = url.replace('-', " ");
                 Anime { url, name }
             })
             .sorted()
@@ -49,7 +52,7 @@ impl Scraper for AnimeFLVScraper {
     async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>> {
         let pattern = Regex::new("var episodes = .*?;")?;
         let anime = client
-            .get(format!("https://www3.animeflv.net/anime/{}", anime))
+            .get(format!("https://www3.animeflv.net/anime/{anime}"))
             .send()
             .await?
             .text()
@@ -69,7 +72,7 @@ impl Scraper for AnimeFLVScraper {
             .strip_suffix("]];")
             .unwrap()
             .split("],[")
-            .filter_map(|ep| ep.split(",").next())
+            .filter_map(|ep| ep.split(',').next())
             .filter_map(|ep| ep.parse::<usize>().ok())
             .sorted()
             .collect_vec();
@@ -83,10 +86,7 @@ impl Scraper for AnimeFLVScraper {
         episode: usize,
     ) -> Result<Vec<String>, Box<dyn Error>> {
         let response = client
-            .get(format!(
-                "https://www3.animeflv.net/ver/{}-{}",
-                anime, episode
-            ))
+            .get(format!("https://www3.animeflv.net/ver/{anime}-{episode}"))
             .send()
             .await?
             .text()
@@ -96,14 +96,7 @@ impl Scraper for AnimeFLVScraper {
 
         let mirrors = pattern
             .find_iter(&response)
-            .map(|found| {
-                found
-                    .as_str()
-                    .to_owned()
-                    .replace("\\", "")
-                    .replace("\"", "")[5..]
-                    .to_owned()
-            })
+            .map(|found| found.as_str().to_owned().replace(['\\', '"'], "")[5..].to_owned())
             .collect_vec();
 
         Ok(mirrors)

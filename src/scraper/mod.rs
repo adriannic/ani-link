@@ -7,9 +7,9 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-mod anime;
-mod animeav1scraper;
-mod animeflvscraper;
+pub mod anime;
+pub mod animeav1scraper;
+pub mod animeflvscraper;
 
 #[derive(ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize)]
 #[clap(rename_all = "PascalCase")]
@@ -20,7 +20,7 @@ pub enum ScraperImpl {
 
 impl fmt::Display for ScraperImpl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -42,7 +42,11 @@ impl ScraperImpl {
 
 #[async_trait]
 pub trait Scraper {
-    async fn try_search(client: &Client, query: &str) -> Result<Vec<Anime>, Box<dyn Error>>;
+    async fn try_search(
+        client: &Client,
+        query: &str,
+        pages: usize,
+    ) -> Result<Vec<Anime>, Box<dyn Error>>;
     async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>>;
     async fn try_get_mirrors(
         client: &Client,

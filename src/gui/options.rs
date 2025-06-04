@@ -1,6 +1,6 @@
-use super::MainMenuSelection;
 use crate::config::Config;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent};
+use crate::gui::main_menu::MainMenuSelection;
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::CrosstermBackend;
 use ratatui::style::{Style, Stylize};
@@ -8,7 +8,6 @@ use ratatui::symbols::border;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, List, ListDirection, ListState};
 use ratatui::Terminal;
-use reqwest::Client;
 use std::error::Error;
 use std::fmt;
 use std::io::Stdout;
@@ -34,9 +33,9 @@ impl fmt::Display for Options {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub async fn options(
     config: &mut Config,
-    client: &Client,
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
 ) -> Result<(), Box<dyn Error>> {
     let mut main_state = ListState::default();
@@ -67,9 +66,9 @@ pub async fn options(
                 " Anterior:".white(),
                 " ← H ".blue().bold(),
                 " Guardar:".white(),
-                " Esc Enter ".blue().bold(),
+                " Enter ".blue().bold(),
                 " Salir sin guardar:".white(),
-                " Q ".blue().bold(),
+                " Esc Q ".blue().bold(),
             ]);
 
             let right_block = Block::bordered()
@@ -110,13 +109,19 @@ pub async fn options(
                 .block(list_block)
                 .highlight_symbol("> ")
                 .highlight_style(Style::new().bold())
+                .style(Style::new().gray())
                 .repeat_highlight_symbol(true)
                 .direction(ListDirection::TopToBottom);
 
             frame.render_stateful_widget(main_menu_list, main_menu_area, &mut main_state);
         })?;
 
-        if let Event::Key(KeyEvent { code, .. }) = event::read()? {
+        if let Event::Key(KeyEvent {
+            code,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event::read()?
+        {
             match code {
                 KeyCode::Char('k') | KeyCode::Up => option_state.select_previous(),
                 KeyCode::Char('j') | KeyCode::Down => option_state.select_next(),
@@ -138,16 +143,16 @@ pub async fn options(
                         }
                     }
                 }
-                KeyCode::Esc | KeyCode::Enter => {
+                KeyCode::Enter => {
                     config.save()?;
                     break;
                 }
-                KeyCode::Char('q') => {
+                KeyCode::Esc | KeyCode::Char('q') => {
                     *config = old_config;
                     break;
                 }
                 _ => {}
-            };
+            }
         }
     }
     Ok(())

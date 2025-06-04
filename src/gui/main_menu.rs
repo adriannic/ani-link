@@ -1,14 +1,12 @@
-use options::options;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent};
-use ratatui::layout::{Alignment, Constraint, Layout};
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::CrosstermBackend;
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols::border;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, List, ListDirection, ListState, Paragraph, StatefulWidget};
+use ratatui::widgets::{Block, List, ListDirection, ListState, Paragraph};
 use ratatui::Terminal;
 use reqwest::Client;
-use search::search;
 use std::error::Error;
 use std::fmt;
 use std::io::Stdout;
@@ -17,8 +15,8 @@ use strum_macros::EnumIter;
 
 use crate::config::Config;
 
-mod options;
-mod search;
+use super::options::options;
+use super::search::search;
 
 #[derive(EnumIter)]
 pub enum MainMenuSelection {
@@ -50,9 +48,10 @@ impl MainMenuSelection {
     ) -> Result<bool, Box<dyn Error>> {
         match self {
             Self::Search => search(config, client, terminal).await?,
-            Self::Options => options(config, client, terminal).await?,
+            Self::Options => options(config, terminal).await?,
             Self::Exit => return Ok(true),
-        };
+        }
+
         Ok(false)
     }
 }
@@ -114,7 +113,7 @@ pub async fn main_menu(
                 " Confirmar:".white(),
                 " → L Enter ".blue().bold(),
                 " Salir:".white(),
-                " ← H Q ".blue().bold(),
+                " ← H Esc ".blue().bold(),
             ]);
 
             let right_block = Block::bordered()
@@ -145,7 +144,12 @@ pub async fn main_menu(
             frame.render_stateful_widget(main_menu_list, main_menu_area, &mut selected);
         })?;
 
-        if let Event::Key(KeyEvent { code, .. }) = event::read()? {
+        if let Event::Key(KeyEvent {
+            code,
+            kind: KeyEventKind::Press,
+            ..
+        }) = event::read()?
+        {
             match code {
                 KeyCode::Up | KeyCode::Char('k') => selected.select_previous(),
                 KeyCode::Down | KeyCode::Char('j') => selected.select_next(),
@@ -157,10 +161,11 @@ pub async fn main_menu(
                         }
                     }
                 }
-                KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('q') => break,
+                KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => break,
                 _ => {}
-            };
+            }
         }
     }
+
     Ok(())
 }
