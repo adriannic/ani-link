@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use futures::future;
 use itertools::Itertools;
 use regex::Regex;
@@ -9,7 +8,6 @@ use super::{anime::Anime, Scraper};
 
 pub struct AnimeFlvScraper;
 
-#[async_trait]
 impl Scraper for AnimeFlvScraper {
     async fn try_search(
         client: &Client,

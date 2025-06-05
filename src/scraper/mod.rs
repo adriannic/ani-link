@@ -1,7 +1,6 @@
 use std::{error::Error, fmt};
 
 use anime::Anime;
-use async_trait::async_trait;
 use clap::ValueEnum;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -40,7 +39,6 @@ impl ScraperImpl {
     }
 }
 
-#[async_trait]
 pub trait Scraper {
     async fn try_search(
         client: &Client,

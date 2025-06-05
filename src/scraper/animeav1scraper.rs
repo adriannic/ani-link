@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use futures::future;
 use itertools::Itertools;
 use regex::Regex;
@@ -10,7 +9,6 @@ use super::{anime::Anime, Scraper};
 
 pub struct AnimeAv1Scraper;
 
-#[async_trait]
 impl Scraper for AnimeAv1Scraper {
     async fn try_search(
         client: &Client,
