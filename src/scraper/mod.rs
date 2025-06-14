@@ -40,11 +40,7 @@ impl ScraperImpl {
 }
 
 pub trait Scraper {
-    async fn try_search(
-        client: &Client,
-        query: &str,
-        pages: usize,
-    ) -> Result<Vec<Anime>, Box<dyn Error>>;
+    async fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>>;
     async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>>;
     async fn try_get_mirrors(
         client: &Client,

@@ -11,13 +11,12 @@ pub struct AnimeFlvScraper;
 impl Scraper for AnimeFlvScraper {
     async fn try_search(
         client: &Client,
-        query: &str,
-        pages: usize,
     ) -> Result<Vec<Anime>, Box<dyn Error>> {
+        let pages = 150;
         let pattern = Regex::new("\"/anime/.*?\"")?;
 
         let urls = (1..=pages)
-            .map(|page| format!("https://www3.animeflv.net/browse?q={query}&page={page}"))
+            .map(|page| format!("https://www3.animeflv.net/browse?page={page}"))
             .collect_vec();
 
         let bodies = future::join_all(urls.into_iter().map(|url| {

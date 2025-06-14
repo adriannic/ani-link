@@ -7,16 +7,18 @@ use std::error::Error;
 
 use super::{anime::Anime, Scraper};
 
+const LETTERS: &str = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 pub struct AnimeAv1Scraper;
 
 impl Scraper for AnimeAv1Scraper {
-    async fn try_search(
-        client: &Client,
-        query: &str,
-        pages: usize,
-    ) -> Result<Vec<Anime>, Box<dyn Error>> {
+    async fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>> {
+        let pages = 11;
         let urls = (1..=pages)
-            .map(|page| format!("https://animeav1.com/catalogo?search={query}&page={page}"))
+            .cartesian_product(LETTERS.chars())
+            .map(|(page, letter)| {
+                format!("https://animeav1.com/catalogo?letter={letter}&page={page}")
+            })
             .collect_vec();
 
         let bodies = future::join_all(urls.into_iter().map(|url| {

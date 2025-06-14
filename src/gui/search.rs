@@ -1,6 +1,7 @@
+use crossterm::event::{Event, EventStream, KeyCode, KeyEvent, KeyEventKind};
+use futures::{FutureExt, StreamExt};
 use fuzzy_matcher::clangd::fuzzy_match;
 use itertools::Itertools;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::CrosstermBackend;
 use ratatui::style::{Style, Stylize};
@@ -15,7 +16,6 @@ use strum::IntoEnumIterator;
 
 use crate::config::Config;
 use crate::gui::episodes::episodes;
-use crate::scraper::anime::Anime;
 use crate::scraper::animeav1scraper::AnimeAv1Scraper;
 use crate::scraper::animeflvscraper::AnimeFlvScraper;
 use crate::scraper::{Scraper, ScraperImpl};
@@ -31,9 +31,15 @@ enum SearchState {
 #[allow(clippy::too_many_lines)]
 pub async fn search(
     config: &Config,
-    client: &Client,
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
 ) -> Result<(), Box<dyn Error>> {
+    let client = Client::builder()
+        .user_agent(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0",
+        )
+        .cookie_store(true)
+        .build()?;
+
     const MAX_QUERY: usize = 80;
 
     let mut main_menu_state = ListState::default();
@@ -45,15 +51,23 @@ pub async fn search(
     let mut query = String::new();
     query.reserve_exact(MAX_QUERY);
 
-    let mut should_query = true;
+    let animes = match config.scraper {
+        ScraperImpl::AnimeAv1Scraper => AnimeAv1Scraper::try_search(&client).await?,
+        ScraperImpl::AnimeFlvScraper => AnimeFlvScraper::try_search(&client).await?,
+    };
 
-    let mut animes: Vec<Anime> = vec![];
-
-    let mut filtered_anime: Vec<Anime> = vec![];
+    let mut events = EventStream::default();
 
     let mut state = SearchState::Searching;
 
     loop {
+        let filtered_anime = animes
+            .iter()
+            .filter(|&anime| fuzzy_match(&anime.name, &query).is_some())
+            .cloned()
+            .sorted()
+            .collect_vec();
+
         terminal.draw(|frame| {
             // Divide areas
             let horizontal = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
@@ -152,95 +166,67 @@ pub async fn search(
 
         match state {
             SearchState::Searching => {
-                if let Event::Key(KeyEvent {
-                    code,
-                    kind: KeyEventKind::Press,
-                    ..
-                }) = event::read()?
-                {
-                    match code {
-                        KeyCode::Esc => break,
-                        KeyCode::Enter => state = SearchState::Choosing,
-                        KeyCode::Backspace => {
-                            if !query.is_empty() {
-                                query.pop();
-                                if query.is_empty() {
-                                    should_query = query.is_empty();
-                                    anime_state.select(None);
-                                    animes.clear();
+                tokio::select! {
+                    event = events.next().fuse() => {
+                        if let Some(Ok(Event::Key(KeyEvent {
+                            code,
+                            kind: KeyEventKind::Press,
+                            ..
+                        }))) = event
+                        {
+                            match code {
+                                KeyCode::Esc => break,
+                                KeyCode::Enter => state = SearchState::Choosing,
+                                KeyCode::Backspace => {
+                                    if !query.is_empty() {
+                                        anime_state.select_first();
+                                        query.pop();
+                                        if query.is_empty() {
+                                            anime_state.select(None);
+                                        }
+                                    }
                                 }
-
-                                filtered_anime = animes
-                                    .iter()
-                                    .filter(|&anime| fuzzy_match(&anime.name, &query).is_some())
-                                    .cloned()
-                                    .collect_vec();
-
-                                filtered_anime.sort_by(|a, b| a.name.cmp(&b.name));
+                                KeyCode::Char(c) => {
+                                    if query.len() < MAX_QUERY {
+                                        query.push(c);
+                                        anime_state.select_first();
+                                    }
+                                }
+                                _ => {}
                             }
                         }
-                        KeyCode::Char(c) => {
-                            if query.len() < MAX_QUERY {
-                                query.push(c);
-
-                                if should_query {
-                                    animes = match config.scraper {
-                                        ScraperImpl::AnimeFlvScraper => {
-                                            AnimeFlvScraper::try_search(
-                                                client,
-                                                &query,
-                                                config.pages,
-                                            )
-                                            .await?
-                                        }
-                                        ScraperImpl::AnimeAv1Scraper => {
-                                            AnimeAv1Scraper::try_search(
-                                                client,
-                                                &query,
-                                                config.pages,
-                                            )
-                                            .await?
-                                        }
-                                    };
-                                    should_query = false;
-                                    anime_state.select_first();
-                                }
-
-                                filtered_anime = animes
-                                    .iter()
-                                    .filter(|&anime| fuzzy_match(&anime.name, &query).is_some())
-                                    .cloned()
-                                    .collect_vec();
-
-                                filtered_anime.sort_by(|a, b| a.name.cmp(&b.name));
-                            }
-                        }
-                        _ => {}
                     }
+                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {}
                 }
             }
             SearchState::Choosing => {
-                if let Event::Key(KeyEvent {
-                    code,
-                    kind: KeyEventKind::Press,
-                    ..
-                }) = event::read()?
-                {
-                    match code {
-                        KeyCode::Up | KeyCode::Char('k') => anime_state.select_previous(),
-                        KeyCode::Down | KeyCode::Char('j') => anime_state.select_next(),
-                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
-                            if let Some(i) = anime_state.selected() {
-                                let anime = filtered_anime.get(i).unwrap();
-                                episodes(config, client, terminal, anime).await?;
+                tokio::select! {
+                    event = events.next().fuse() => {
+                        if let Some(Ok(Event::Key(KeyEvent {
+                            code,
+                            kind: KeyEventKind::Press,
+                            ..
+                        }))) = event
+                        {
+                            match code {
+                                KeyCode::Up | KeyCode::Char('k') => anime_state.select_previous(),
+                                KeyCode::Down | KeyCode::Char('j') => anime_state.select_next(),
+                                KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                                    if let Some(i) = anime_state.selected() {
+                                        if let Some(anime) = filtered_anime.get(i) {
+                                            episodes(config, &client, terminal, anime).await?;
+                                        }
+                                    }
+                                }
+                                KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => {
+                                    state = SearchState::Searching;
+                                    anime_state.select_first();
+                                }
+                                _ => {}
                             }
                         }
-                        KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => {
-                            state = SearchState::Searching;
-                            anime_state.select_first();
-                        }
-                        _ => {}
                     }
+                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {}
                 }
             }
         }
