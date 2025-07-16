@@ -9,9 +9,7 @@ use super::{anime::Anime, Scraper};
 pub struct AnimeFlvScraper;
 
 impl Scraper for AnimeFlvScraper {
-    async fn try_search(
-        client: &Client,
-    ) -> Result<Vec<Anime>, Box<dyn Error>> {
+    async fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>> {
         let pages = 150;
         let pattern = Regex::new("\"/anime/.*?\"")?;
 
@@ -46,7 +44,7 @@ impl Scraper for AnimeFlvScraper {
         Ok(animes)
     }
 
-    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>> {
+    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<f64>, Box<dyn Error>> {
         let pattern = Regex::new("var episodes = .*?;")?;
         let anime = client
             .get(format!("https://www3.animeflv.net/anime/{anime}"))
@@ -70,8 +68,8 @@ impl Scraper for AnimeFlvScraper {
             .unwrap()
             .split("],[")
             .filter_map(|ep| ep.split(',').next())
-            .filter_map(|ep| ep.parse::<usize>().ok())
-            .sorted()
+            .filter_map(|ep| ep.parse::<f64>().ok())
+            .sorted_by(|a, b| a.partial_cmp(b).unwrap())
             .collect_vec();
 
         Ok(episodes)
@@ -80,7 +78,7 @@ impl Scraper for AnimeFlvScraper {
     async fn try_get_mirrors(
         client: &Client,
         anime: &str,
-        episode: usize,
+        episode: f64,
     ) -> Result<Vec<String>, Box<dyn Error>> {
         let response = client
             .get(format!("https://www3.animeflv.net/ver/{anime}-{episode}"))

@@ -9,7 +9,7 @@ use ratatui::{
     style::{Style, Stylize},
     symbols::border,
     text::Line,
-    widgets::{Block, List, ListDirection, ListState},
+    widgets::{Block, Clear, List, ListDirection, ListState},
     Terminal,
 };
 use reqwest::Client;
@@ -51,6 +51,8 @@ pub async fn episodes(
 
     loop {
         terminal.draw(|frame| {
+            frame.render_widget(Clear, frame.area());
+
             // Divide areas
             let horizontal = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
 

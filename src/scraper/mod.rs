@@ -41,10 +41,10 @@ impl ScraperImpl {
 
 pub trait Scraper {
     async fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>>;
-    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>>;
+    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<f64>, Box<dyn Error>>;
     async fn try_get_mirrors(
         client: &Client,
         anime: &str,
-        episode: usize,
+        episode: f64,
     ) -> Result<Vec<String>, Box<dyn Error>>;
 }

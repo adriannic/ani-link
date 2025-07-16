@@ -55,7 +55,7 @@ impl Scraper for AnimeAv1Scraper {
         Ok(animes)
     }
 
-    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<usize>, Box<dyn Error>> {
+    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<f64>, Box<dyn Error>> {
         let anime = client
             .get(format!("https://animeav1.com{anime}"))
             .send()
@@ -64,17 +64,25 @@ impl Scraper for AnimeAv1Scraper {
             .await?;
 
         let fragment = Html::parse_fragment(&anime);
-        let section_selector = Selector::parse("section").unwrap();
         let article_selector = Selector::parse("article").unwrap();
+        let a_selector = Selector::parse("a").unwrap();
 
         let episodes = fragment
-            .select(&section_selector)
-            .next()
-            .unwrap()
             .select(&article_selector)
-            .count();
-
-        let episodes = (1..=episodes).collect_vec();
+            .map(|article| {
+                article
+                    .select(&a_selector)
+                    .next()
+                    .unwrap()
+                    .attr("href")
+                    .unwrap()
+                    .split('/')
+                    .next_back()
+                    .unwrap()
+                    .to_owned()
+            })
+            .filter_map(|elem| elem.parse::<f64>().ok())
+            .collect_vec();
 
         Ok(episodes)
     }
@@ -82,7 +90,7 @@ impl Scraper for AnimeAv1Scraper {
     async fn try_get_mirrors(
         client: &Client,
         anime: &str,
-        episode: usize,
+        episode: f64,
     ) -> Result<Vec<String>, Box<dyn Error>> {
         let response = client
             .get(format!("https://animeav1.com{anime}/{episode}"))

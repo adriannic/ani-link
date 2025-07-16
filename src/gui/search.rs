@@ -7,7 +7,7 @@ use ratatui::prelude::CrosstermBackend;
 use ratatui::style::{Style, Stylize};
 use ratatui::symbols::border;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, List, ListDirection, ListState, Paragraph};
+use ratatui::widgets::{Block, Clear, List, ListDirection, ListState, Paragraph};
 use ratatui::Terminal;
 use reqwest::Client;
 use std::error::Error;
@@ -69,6 +69,8 @@ pub async fn search(
             .collect_vec();
 
         terminal.draw(|frame| {
+            frame.render_widget(Clear, frame.area());
+
             // Divide areas
             let horizontal = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
 

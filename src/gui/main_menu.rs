@@ -107,6 +107,8 @@ fn draw(
     searching: bool,
 ) -> Result<(), Box<dyn Error>> {
     terminal.draw(|frame| {
+        frame.render_widget(Clear, frame.area());
+
         // Divide areas
         let horizontal = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
 
