@@ -69,6 +69,8 @@ pub async fn episodes(
                 " ↓ J ".blue().bold(),
                 " Confirmar:".white(),
                 " → L Enter ".blue().bold(),
+                " Syncplay:".white(),
+                " S ".blue().bold(),
                 " Atrás:".white(),
                 " ← H Esc ".blue().bold(),
             ]);
@@ -118,7 +120,8 @@ pub async fn episodes(
             match code {
                 KeyCode::Up | KeyCode::Char('k') => selected.select_previous(),
                 KeyCode::Down | KeyCode::Char('j') => selected.select_next(),
-                KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+                KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('s') | KeyCode::Enter => {
+                    let use_syncplay = matches!(code, KeyCode::Char('s'));
                     if let Some(i) = selected.selected() {
                         let episode = episode_vec[i];
                         let mirrors = match config.scraper {
@@ -137,20 +140,23 @@ pub async fn episodes(
                             .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
                             .collect_vec();
 
-                        let success = viewable.iter().any(|mirror| {
+                        let success = !viewable.iter().all(|mirror| {
                             Notification::new()
                                 .summary("Ani-link")
                                 .body(
-                                    format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#)
-                                        .as_str(),
+                                    format!(
+                                        r#"Abriendo "{mirror}" en {}, por favor, espera."#,
+                                        if use_syncplay { "syncplay" } else { "mpv" }
+                                    )
+                                    .as_str(),
                                 )
                                 .show()
                                 .unwrap();
 
-                            let mut command = if cfg!(target_os = "windows") {
-                                Command::new("mpv.exe")
+                            let mut command = if use_syncplay {
+                                Command::new(format!("syncplay{}", if cfg!(target_os = "windows") {".exe"}else{""}))
                             } else {
-                                Command::new("mpv")
+                                Command::new(format!("mpv{}", if cfg!(target_os = "windows") {".exe"}else{""}))
                             };
 
                             command
@@ -158,13 +164,16 @@ pub async fn episodes(
                                 .output()
                                 .ok()
                                 .and_then(|output| output.status.code().filter(|&code| code == 0))
-                                .is_some()
+                                .is_none()
                         });
 
                         if !success {
                             Notification::new()
                                 .summary("Ani-link")
-                                .body("No se ha podido abrir mpv")
+                                .body(&format!(
+                                    "No se ha podido abrir {}",
+                                    if use_syncplay { "syncplay" } else { "mpv" }
+                                ))
                                 .show()
                                 .unwrap();
                         }
