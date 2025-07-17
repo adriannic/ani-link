@@ -63,25 +63,11 @@ impl Scraper for AnimeAv1Scraper {
             .text()
             .await?;
 
-        let fragment = Html::parse_fragment(&anime);
-        let article_selector = Selector::parse("article").unwrap();
-        let a_selector = Selector::parse("a").unwrap();
-
-        let episodes = fragment
-            .select(&article_selector)
-            .map(|article| {
-                article
-                    .select(&a_selector)
-                    .next()
-                    .unwrap()
-                    .attr("href")
-                    .unwrap()
-                    .split('/')
-                    .next_back()
-                    .unwrap()
-                    .to_owned()
-            })
-            .filter_map(|elem| elem.parse::<f64>().ok())
+        let episodes_re = Regex::new(r"number:(.*?)}")?;
+        let episodes = episodes_re
+            .captures_iter(&anime)
+            .filter_map(|c| c.get(1))
+            .filter_map(|m| m.as_str().parse::<f64>().ok())
             .collect_vec();
 
         Ok(episodes)

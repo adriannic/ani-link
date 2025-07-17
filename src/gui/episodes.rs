@@ -154,9 +154,23 @@ pub async fn episodes(
                                 .unwrap();
 
                             let mut command = if use_syncplay {
-                                Command::new(format!("syncplay{}", if cfg!(target_os = "windows") {".exe"}else{""}))
+                                Command::new(format!(
+                                    "syncplay{}",
+                                    if cfg!(target_os = "windows") {
+                                        ".exe"
+                                    } else {
+                                        ""
+                                    }
+                                ))
                             } else {
-                                Command::new(format!("mpv{}", if cfg!(target_os = "windows") {".exe"}else{""}))
+                                Command::new(format!(
+                                    "mpv{}",
+                                    if cfg!(target_os = "windows") {
+                                        ".exe"
+                                    } else {
+                                        ""
+                                    }
+                                ))
                             };
 
                             command
