@@ -3,10 +3,10 @@ use std::fs::File;
 use std::io::Write;
 
 use dirs::config_dir;
+use figment::Figment;
 use figment::providers::Format;
 use figment::providers::Serialized;
 use figment::providers::Toml;
-use figment::Figment;
 use serde::Deserialize;
 use serde::Serialize;
 

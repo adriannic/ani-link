@@ -1,57 +1,59 @@
-use futures::future;
 use itertools::Itertools;
+use rayon::prelude::*;
 use regex::Regex;
-use reqwest::Client;
+use reqwest::blocking::Client;
 use std::error::Error;
 
-use super::{anime::Anime, Scraper};
+use super::{Scraper, anime::Anime};
 
 pub struct AnimeFlvScraper;
 
 impl Scraper for AnimeFlvScraper {
-    async fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>> {
+    fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>> {
         let pages = 150;
-        let pattern = Regex::new("\"/anime/.*?\"")?;
+        let anime_re = Regex::new(
+            r#"<article class="Anime alt B">[\s\S]*?"\/anime\/(.*?)"[\s\S]*?(\d+)\.jpg[\s\S]*?Title">(.*?)<[\s\S]*?<\/p>[\s\S]*?<p>([\s\S]*?)<\/p>[\s\S]*?<\/article>"#,
+        )?;
 
         let urls = (1..=pages)
+            .into_par_iter()
             .map(|page| format!("https://www3.animeflv.net/browse?page={page}"))
-            .collect_vec();
+            .collect::<Vec<_>>();
 
-        let bodies = future::join_all(urls.into_iter().map(|url| {
-            let client = client.clone();
-            tokio::spawn(async move {
-                let response = client.get(&url).send().await?;
-                response.text().await
-            })
-        }))
-        .await
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter_map(Result::ok)
-        .join("\n\n");
+        let bodies = urls
+            .par_iter()
+            .map(|url| client.get(url).send().unwrap().text().unwrap())
+            .collect::<String>();
 
-        let animes = pattern
-            .find_iter(&bodies)
-            .map(|found| {
-                let url: String = found.as_str()[8..found.as_str().len() - 1].into();
-                let name = url.replace('-', " ");
-                Anime { url, name }
+        let mut animes = anime_re
+            .captures_iter(&bodies)
+            .par_bridge()
+            .filter_map(|c| {
+                let slug = c.get(1)?.as_str();
+                let id = c.get(2)?.as_str();
+                let title = c.get(3)?.as_str();
+                let synopsis = c.get(4)?.as_str();
+                Some(Anime {
+                    names: vec![title.into(), slug.into()],
+                    synopsis: synopsis.into(),
+                    image_url: format!("https://www3.animeflv.net/uploads/animes/covers/{id}.jpg"),
+                })
             })
-            .sorted()
-            .dedup()
-            .collect_vec();
+            .collect::<Vec<_>>();
+
+        animes.par_sort();
 
         Ok(animes)
     }
 
-    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<f64>, Box<dyn Error>> {
+    fn try_get_episodes(client: &Client, slug: &str) -> Result<Vec<f64>, Box<dyn Error>> {
         let pattern = Regex::new("var episodes = .*?;")?;
         let anime = client
-            .get(format!("https://www3.animeflv.net/anime/{anime}"))
+            .get(format!("https://www3.animeflv.net/anime/{slug}"))
             .send()
-            .await?
+            .unwrap()
             .text()
-            .await?;
+            .unwrap();
 
         let binding = pattern
             .find(&anime)
@@ -75,17 +77,17 @@ impl Scraper for AnimeFlvScraper {
         Ok(episodes)
     }
 
-    async fn try_get_mirrors(
+    fn try_get_mirrors(
         client: &Client,
-        anime: &str,
+        slug: &str,
         episode: f64,
     ) -> Result<Vec<String>, Box<dyn Error>> {
         let response = client
-            .get(format!("https://www3.animeflv.net/ver/{anime}-{episode}"))
+            .get(format!("https://www3.animeflv.net/ver/{slug}-{episode}"))
             .send()
-            .await?
+            .unwrap()
             .text()
-            .await?;
+            .unwrap();
 
         let pattern = Regex::new("\"code\":\".*?\"")?;
 
