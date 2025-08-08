@@ -10,7 +10,7 @@ pub mod anime;
 pub mod animeav1scraper;
 pub mod animeflvscraper;
 
-#[derive(ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize)]
+#[derive(ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[clap(rename_all = "PascalCase")]
 pub enum ScraperImpl {
     AnimeAv1Scraper,
