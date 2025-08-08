@@ -1,19 +1,10 @@
-use config::Config;
-use gui::main_menu::main_menu;
 use std::error::Error;
 
-mod config;
-mod gui;
-mod scraper;
+use ani_link::app::App;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let mut config = Config::init()?;
-    let mut term = ratatui::init();
-
-    main_menu(&mut config, &mut term).await?;
-
-    ratatui::restore();
+fn main() -> Result<(), Box<dyn Error>> {
+    let app = App::init()?;
+    app.run()?;
 
     Ok(())
 }

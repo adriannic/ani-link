@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use anime::Anime;
 use clap::ValueEnum;
-use reqwest::Client;
+use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
@@ -10,7 +10,7 @@ pub mod anime;
 pub mod animeav1scraper;
 pub mod animeflvscraper;
 
-#[derive(ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize)]
+#[derive(ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[clap(rename_all = "PascalCase")]
 pub enum ScraperImpl {
     AnimeAv1Scraper,
@@ -40,11 +40,11 @@ impl ScraperImpl {
 }
 
 pub trait Scraper {
-    async fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>>;
-    async fn try_get_episodes(client: &Client, anime: &str) -> Result<Vec<f64>, Box<dyn Error>>;
-    async fn try_get_mirrors(
+    fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>>;
+    fn try_get_episodes(client: &Client, slug: &str) -> Result<Vec<f64>, Box<dyn Error>>;
+    fn try_get_mirrors(
         client: &Client,
-        anime: &str,
+        slug: &str,
         episode: f64,
     ) -> Result<Vec<String>, Box<dyn Error>>;
 }
