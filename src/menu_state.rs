@@ -1,12 +1,10 @@
-use std::
-    thread::{self, JoinHandle}
-;
+use std::thread::{self, JoinHandle};
 
 use ratatui::widgets::ListState;
 use reqwest::blocking::Client;
 
 use crate::{
-    app::search::SearchState,
+    search::SearchState,
     config::Config,
     scraper::{
         Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
@@ -47,7 +45,10 @@ impl ListQueryState {
 
 pub enum MenuState {
     Episodes {
+        state: ListState,
+        anime_list: Vec<Anime>,
         anime: Anime,
+        episodes: Vec<f64>,
     },
     MainMenu {
         anime_list: ListQueryState,
