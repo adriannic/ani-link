@@ -10,11 +10,11 @@ use search::{draw_search, handle_events_search};
 use std::error::Error;
 use strum::IntoEnumIterator;
 
-use crate::episodes::{draw_episodes, handle_events_episodes};
-use crate::options::{draw_options, handle_events_options};
 use crate::config::Config;
-use crate::{main_menu, search};
+use crate::episodes::{draw_episodes, handle_events_episodes};
 use crate::menu_state::{ListQueryState, MenuState};
+use crate::options::{draw_options, handle_events_options};
+use crate::{main_menu, search};
 
 pub struct App {
     pub running: bool,
@@ -76,19 +76,19 @@ impl App {
                     ..
                 } => draw_main_menu(frame, content_area, searching),
                 MenuState::Search {
-                    ref anime_list,
                     search_state,
                     ref query,
                     ref mut anime_state,
+                    ref filtered_list,
                     ..
                 } => {
                     draw_search(
                         frame,
                         content_area,
-                        anime_list,
                         search_state,
                         query,
                         anime_state,
+                        filtered_list,
                     );
                 }
                 MenuState::Options { ref mut state, .. } => {

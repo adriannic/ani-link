@@ -12,9 +12,12 @@ use ratatui::{
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{app::App, menu_state::{ListQueryState, MenuState}};
+use crate::{
+    app::App,
+    menu_state::{ListQueryState, MenuState},
+};
 
-use super::{search::SearchState};
+use super::search::SearchState;
 
 #[derive(EnumIter, PartialEq, Eq)]
 pub enum MainMenuSelection {
@@ -168,8 +171,7 @@ pub fn handle_events_main_menu(app: &mut App) {
                             }
                         }
                         MainMenuSelection::Options => {
-                            let MenuState::MainMenu { anime_list, .. } = &mut app.menu_state
-                            else {
+                            let MenuState::MainMenu { anime_list, .. } = &mut app.menu_state else {
                                 panic!("Invalid app state in main menu")
                             };
 
@@ -188,4 +190,3 @@ pub fn handle_events_main_menu(app: &mut App) {
         }
     }
 }
-

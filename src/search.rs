@@ -1,6 +1,5 @@
 use std::mem;
 
-use fuzzy_matcher::clangd::fuzzy_match;
 use ratatui::{
     Frame,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
@@ -11,6 +10,7 @@ use ratatui::{
     widgets::{Block, List, ListDirection, ListState, Paragraph},
 };
 use rayon::prelude::*;
+use rust_fuzzy_search::fuzzy_search;
 
 use crate::{
     menu_state::{ListQueryState, MenuState},
@@ -33,10 +33,10 @@ pub enum SearchState {
 pub fn draw_search(
     frame: &mut Frame,
     content_area: Rect,
-    anime_list: &[Anime],
     search_state: SearchState,
     query: &str,
     anime_state: &mut ListState,
+    filtered_list: &[Anime],
 ) {
     let vertical = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]);
 
@@ -94,24 +94,10 @@ pub fn draw_search(
         list_block = list_block.title_bottom(list_instructions.centered());
     }
 
-    let mut filtered_anime = anime_list
+    let filtered_anime = filtered_list
         .iter()
-        .par_bridge()
-        .filter_map(|anime| {
-            if anime
-                .names
-                .iter()
-                .any(|name| fuzzy_match(name, query).is_some())
-            {
-                Some(&anime.names[0])
-            } else {
-                None
-            }
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-
-    filtered_anime.par_sort();
+        .map(|anime| anime.names[0].as_ref())
+        .collect::<Vec<&str>>();
 
     let mut anime_list = List::new(filtered_anime)
         .block(list_block)
@@ -162,12 +148,30 @@ pub fn handle_events_search(app: &mut App) {
                             anime_state.select(None);
                         }
 
-                        *filtered_list = anime_list
-                            .par_iter()
-                            .filter(|&anime| fuzzy_match(&anime.names[0], query).is_some())
-                            .cloned()
+                        let mut filtered_anime = fuzzy_search(
+                            &query.to_lowercase(),
+                            &anime_list
+                                .par_iter()
+                                .map(|anime| anime.names[0].to_lowercase().to_string())
+                                .collect::<Vec<_>>()
+                                .par_iter()
+                                .map(String::as_ref)
+                                .collect::<Vec<_>>(),
+                        )
+                        .par_iter()
+                        .map(|(_, score)| *score)
+                        .zip(anime_list.clone())
+                        .collect::<Vec<_>>();
+
+                        filtered_anime.par_sort_unstable_by(|a, b| {
+                            b.0.partial_cmp(&a.0)
+                                .expect("Comparison of f32 failed when sorting animes")
+                        });
+
+                        *filtered_list = filtered_anime
+                            .into_iter()
+                            .map(|(_, anime)| anime)
                             .collect::<Vec<_>>();
-                        filtered_list.par_sort();
                     }
                 }
                 KeyCode::Char(c) => {
@@ -175,12 +179,30 @@ pub fn handle_events_search(app: &mut App) {
                         query.push(c);
                         anime_state.select_first();
 
-                        *filtered_list = anime_list
-                            .par_iter()
-                            .filter(|&anime| fuzzy_match(&anime.names[0], query).is_some())
-                            .cloned()
+                        let mut filtered_anime = fuzzy_search(
+                            &query.to_lowercase(),
+                            &anime_list
+                                .par_iter()
+                                .map(|anime| anime.names[0].to_lowercase().to_string())
+                                .collect::<Vec<_>>()
+                                .par_iter()
+                                .map(String::as_ref)
+                                .collect::<Vec<_>>(),
+                        )
+                        .par_iter()
+                        .map(|(_, score)| *score)
+                        .zip(anime_list.clone())
+                        .collect::<Vec<_>>();
+
+                        filtered_anime.sort_unstable_by(|a, b| {
+                            b.0.partial_cmp(&a.0)
+                                .expect("Comparison of f32 failed when sorting animes")
+                        });
+
+                        *filtered_list = filtered_anime
+                            .into_par_iter()
+                            .map(|(_, anime)| anime)
                             .collect::<Vec<_>>();
-                        filtered_list.par_sort();
                     }
                 }
                 _ => {}
@@ -198,18 +220,12 @@ pub fn handle_events_search(app: &mut App) {
                             anime: anime.clone(),
                             episodes: match app.config.scraper {
                                 ScraperImpl::AnimeAv1Scraper => {
-                                    AnimeAv1Scraper::try_get_episodes(
-                                        &app.client,
-                                        &anime.names[1],
-                                    )
-                                    .expect("Couldn't get episodes")
+                                    AnimeAv1Scraper::try_get_episodes(&app.client, &anime.names[1])
+                                        .expect("Couldn't get episodes")
                                 }
                                 ScraperImpl::AnimeFlvScraper => {
-                                    AnimeFlvScraper::try_get_episodes(
-                                        &app.client,
-                                        &anime.names[1],
-                                    )
-                                    .expect("Couldn't get episodes")
+                                    AnimeFlvScraper::try_get_episodes(&app.client, &anime.names[1])
+                                        .expect("Couldn't get episodes")
                                 }
                             },
                         };
@@ -224,4 +240,3 @@ pub fn handle_events_search(app: &mut App) {
         }
     }
 }
-

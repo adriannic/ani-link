@@ -37,12 +37,7 @@ impl fmt::Display for Options {
     }
 }
 
-pub fn draw_options(
-    frame: &mut Frame,
-    content_area: Rect,
-    config: &Config,
-    state: &mut ListState,
-) {
+pub fn draw_options(frame: &mut Frame, content_area: Rect, config: &Config, state: &mut ListState) {
     // Render right block
     let options_title = Line::from(" Opciones ".bold().white()).centered();
 
@@ -110,9 +105,7 @@ pub fn handle_events_options(app: &mut App) {
                     let option = Options::iter().nth(i).unwrap();
                     match option {
                         Options::Scraper => app.config.scraper = app.config.scraper.next(),
-                        Options::Pages => {
-                            app.config.pages = (app.config.pages + 1).clamp(1, 50)
-                        }
+                        Options::Pages => app.config.pages = (app.config.pages + 1).clamp(1, 50),
                     }
                 }
             }
@@ -121,9 +114,7 @@ pub fn handle_events_options(app: &mut App) {
                     let option = Options::iter().nth(i).unwrap();
                     match option {
                         Options::Scraper => app.config.scraper = app.config.scraper.previous(),
-                        Options::Pages => {
-                            app.config.pages = (app.config.pages - 1).clamp(1, 50)
-                        }
+                        Options::Pages => app.config.pages = (app.config.pages - 1).clamp(1, 50),
                     }
                 }
             }
@@ -132,10 +123,7 @@ pub fn handle_events_options(app: &mut App) {
 
                 app.menu_state = if app.config.scraper != old_config.scraper {
                     MenuState::MainMenu {
-                        anime_list: ListQueryState::spawn(
-                            app.config.scraper,
-                            app.client.clone(),
-                        ),
+                        anime_list: ListQueryState::spawn(app.config.scraper, app.client.clone()),
                         should_draw_popup: false,
                     }
                 } else {
@@ -156,4 +144,3 @@ pub fn handle_events_options(app: &mut App) {
         }
     }
 }
-

@@ -16,8 +16,10 @@ use crate::{
     app::App,
     menu_state::MenuState,
     scraper::{
-        anime::Anime, animeav1scraper::AnimeAv1Scraper, animeflvscraper::AnimeFlvScraper, Scraper, ScraperImpl
-    }, search::SearchState,
+        Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
+        animeflvscraper::AnimeFlvScraper,
+    },
+    search::SearchState,
 };
 
 const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
@@ -87,18 +89,14 @@ pub fn handle_events_episodes(app: &mut App) {
                 if let Some(i) = state.selected() {
                     let episode = episodes[i];
                     let mirrors = match app.config.scraper {
-                        ScraperImpl::AnimeAv1Scraper => AnimeAv1Scraper::try_get_mirrors(
-                            &app.client,
-                            &anime.names[1],
-                            episode,
-                        )
-                        .expect("Couldn't get mirrors"),
-                        ScraperImpl::AnimeFlvScraper => AnimeFlvScraper::try_get_mirrors(
-                            &app.client,
-                            &anime.names[1],
-                            episode,
-                        )
-                        .expect("Couldn't get mirrors"),
+                        ScraperImpl::AnimeAv1Scraper => {
+                            AnimeAv1Scraper::try_get_mirrors(&app.client, &anime.names[1], episode)
+                                .expect("Couldn't get mirrors")
+                        }
+                        ScraperImpl::AnimeFlvScraper => {
+                            AnimeFlvScraper::try_get_mirrors(&app.client, &anime.names[1], episode)
+                                .expect("Couldn't get mirrors")
+                        }
                     };
 
                     let viewable = mirrors
@@ -178,4 +176,3 @@ pub fn handle_events_episodes(app: &mut App) {
         }
     }
 }
-

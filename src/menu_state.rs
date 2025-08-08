@@ -4,12 +4,12 @@ use ratatui::widgets::ListState;
 use reqwest::blocking::Client;
 
 use crate::{
-    search::SearchState,
     config::Config,
     scraper::{
         Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
         animeflvscraper::AnimeFlvScraper,
     },
+    search::SearchState,
 };
 
 #[derive(Default)]
