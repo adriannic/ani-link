@@ -10,7 +10,7 @@ use ratatui::{
     widgets::{Block, List, ListDirection, ListState, Paragraph},
 };
 use rayon::prelude::*;
-use rust_fuzzy_search::fuzzy_search;
+use rust_fuzzy_search::fuzzy_compare;
 
 use crate::{
     menu_state::{ListQueryState, MenuState},
@@ -148,30 +148,7 @@ pub fn handle_events_search(app: &mut App) {
                             anime_state.select(None);
                         }
 
-                        let mut filtered_anime = fuzzy_search(
-                            &query.to_lowercase(),
-                            &anime_list
-                                .par_iter()
-                                .map(|anime| anime.names[0].to_lowercase().to_string())
-                                .collect::<Vec<_>>()
-                                .par_iter()
-                                .map(String::as_ref)
-                                .collect::<Vec<_>>(),
-                        )
-                        .par_iter()
-                        .map(|(_, score)| *score)
-                        .zip(anime_list.clone())
-                        .collect::<Vec<_>>();
-
-                        filtered_anime.par_sort_unstable_by(|a, b| {
-                            b.0.partial_cmp(&a.0)
-                                .expect("Comparison of f32 failed when sorting animes")
-                        });
-
-                        *filtered_list = filtered_anime
-                            .into_iter()
-                            .map(|(_, anime)| anime)
-                            .collect::<Vec<_>>();
+                        *filtered_list = sort_fuzzy(query, anime_list);
                     }
                 }
                 KeyCode::Char(c) => {
@@ -179,30 +156,7 @@ pub fn handle_events_search(app: &mut App) {
                         query.push(c);
                         anime_state.select_first();
 
-                        let mut filtered_anime = fuzzy_search(
-                            &query.to_lowercase(),
-                            &anime_list
-                                .par_iter()
-                                .map(|anime| anime.names[0].to_lowercase().to_string())
-                                .collect::<Vec<_>>()
-                                .par_iter()
-                                .map(String::as_ref)
-                                .collect::<Vec<_>>(),
-                        )
-                        .par_iter()
-                        .map(|(_, score)| *score)
-                        .zip(anime_list.clone())
-                        .collect::<Vec<_>>();
-
-                        filtered_anime.sort_unstable_by(|a, b| {
-                            b.0.partial_cmp(&a.0)
-                                .expect("Comparison of f32 failed when sorting animes")
-                        });
-
-                        *filtered_list = filtered_anime
-                            .into_par_iter()
-                            .map(|(_, anime)| anime)
-                            .collect::<Vec<_>>();
+                        *filtered_list = sort_fuzzy(query, anime_list);
                     }
                 }
                 _ => {}
@@ -238,5 +192,34 @@ pub fn handle_events_search(app: &mut App) {
                 _ => {}
             },
         }
+    }
+
+    fn sort_fuzzy(query: &str, animes: &[Anime]) -> Vec<Anime> {
+        let mut result = animes
+            .into_par_iter()
+            .filter_map(|anime| {
+                anime
+                    .names
+                    .clone()
+                    .into_par_iter()
+                    .map(|name| {
+                        let name = name.to_lowercase();
+                        let score = fuzzy_compare(query, &name);
+                        (name, score)
+                    })
+                    .max_by(|a, b| {
+                        a.1.partial_cmp(&b.1)
+                            .expect("Error comparing f32 in sort_fuzzy")
+                    })
+                    .map(|(_, score)| (anime.clone(), score))
+            })
+            .collect::<Vec<_>>();
+
+        result.par_sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .expect("Error comparing f32 in sort_fuzzy")
+        });
+
+        result.into_iter().map(|(anime, _)| anime).collect()
     }
 }
