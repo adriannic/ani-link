@@ -3,7 +3,7 @@ use std::{fmt, mem};
 use ratatui::{
     Frame,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Flex, Layout, Rect},
+    layout::{Constraint, Rect},
     style::{Style, Stylize},
     symbols::border,
     text::Line,
@@ -15,6 +15,7 @@ use strum_macros::EnumIter;
 use crate::{
     app::App,
     menu_state::{ListQueryState, MenuState},
+    popup::{Popup, get_popup_area},
 };
 
 use super::search::SearchState;
@@ -38,14 +39,6 @@ impl fmt::Display for MainMenuSelection {
             }
         )
     }
-}
-
-fn get_popup_area(area: Rect, percent_x: u16, percent_y: u16) -> Rect {
-    let vertical = Layout::vertical([Constraint::Percentage(percent_y)]).flex(Flex::Center);
-    let horizontal = Layout::horizontal([Constraint::Percentage(percent_x)]).flex(Flex::Center);
-    let [area] = vertical.areas(area);
-    let [area] = horizontal.areas(area);
-    area
 }
 
 pub fn draw_main_menu(frame: &mut Frame, content_area: Rect, searching: bool) {
@@ -103,18 +96,12 @@ pub fn draw_main_menu(frame: &mut Frame, content_area: Rect, searching: bool) {
     frame.render_widget(right_block, content_area);
 
     if searching {
-        let popup = Paragraph::new("\nCargando lista de animes...")
-            .block(
-                Block::bordered()
-                    .title(Line::from(" Cargando... ").centered().white())
-                    .border_set(border::THICK)
-                    .border_style(Style::new().green())
-                    .on_black(),
-            )
-            .bold()
-            .centered();
+        let popup = Popup::new(
+            " Cargando... ".into(),
+            "\nCargando lista de animes...".into(),
+        );
 
-        let popup_area = get_popup_area(frame.area(), 20, 12);
+        let popup_area = get_popup_area(frame.area(), 40, 5);
 
         frame.render_widget(Clear, popup_area);
         frame.render_widget(popup, popup_area);

@@ -43,8 +43,17 @@ impl ListQueryState {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum PopupState {
+    None,
+    Mpv(f64),
+    Syncplay(f64),
+    Download(f64),
+}
+
 pub enum MenuState {
     Episodes {
+        popup_state: PopupState,
         state: ListState,
         anime_list: Vec<Anime>,
         anime: Anime,

@@ -95,11 +95,12 @@ impl App {
                     draw_options(frame, content_area, &self.config, state)
                 }
                 MenuState::Episodes {
+                    popup_state,
                     ref mut state,
                     ref anime,
                     ref episodes,
                     ..
-                } => draw_episodes(frame, content_area, anime, state, episodes),
+                } => draw_episodes(frame, content_area, popup_state, anime, state, episodes),
             }
 
             // Render Main menu option list

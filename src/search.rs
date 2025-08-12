@@ -13,10 +13,9 @@ use rayon::prelude::*;
 use rust_fuzzy_search::fuzzy_compare;
 
 use crate::{
-    menu_state::{ListQueryState, MenuState},
+    menu_state::{ListQueryState, MenuState, PopupState},
     scraper::{
-        Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
-        animeflvscraper::AnimeFlvScraper,
+        anime::Anime, animeav1scraper::AnimeAv1Scraper, animeflvscraper::AnimeFlvScraper, Scraper, ScraperImpl
     },
 };
 
@@ -169,6 +168,7 @@ pub fn handle_events_search(app: &mut App) {
                         && let Some(anime) = filtered_list.get(i)
                     {
                         app.menu_state = MenuState::Episodes {
+                            popup_state: PopupState::None,
                             state: ListState::default().with_selected(Some(0)),
                             anime_list: mem::take(anime_list),
                             anime: anime.clone(),

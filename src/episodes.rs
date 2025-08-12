@@ -1,5 +1,10 @@
-use std::{mem, process::Command, time::Duration};
+use std::{
+    mem,
+    process::{Command, Stdio},
+    time::Duration,
+};
 
+use dirs::video_dir;
 use itertools::Itertools;
 use notify_rust::Notification;
 use ratatui::{
@@ -14,7 +19,8 @@ use ratatui::{
 
 use crate::{
     app::App,
-    menu_state::MenuState,
+    menu_state::{MenuState, PopupState},
+    popup::{Popup, get_popup_area},
     scraper::{
         Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
         animeflvscraper::AnimeFlvScraper,
@@ -27,6 +33,7 @@ const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
 pub fn draw_episodes(
     frame: &mut Frame,
     content_area: Rect,
+    popup_state: PopupState,
     anime: &Anime,
     state: &mut ListState,
     episodes: &[f64],
@@ -44,6 +51,8 @@ pub fn draw_episodes(
         " → L Enter ".blue().bold(),
         " Syncplay:".white(),
         " S ".blue().bold(),
+        " Descargar:".white(),
+        " D ".blue().bold(),
         " Atrás:".white(),
         " ← H Esc ".blue().bold(),
     ]);
@@ -62,6 +71,26 @@ pub fn draw_episodes(
         .direction(ListDirection::TopToBottom);
 
     frame.render_stateful_widget(episode_list, content_area, state);
+
+    let popup = match popup_state {
+        PopupState::Syncplay(episode) => Some(Popup::new(
+            " Syncplay ".into(),
+            format!("\nAbriendo el episodio {episode} en syncplay..."),
+        )),
+        PopupState::Download(episode) => Some(Popup::new(
+            " Descarga ".into(),
+            format!("\nDescargando el episodio {episode}..."),
+        )),
+        PopupState::Mpv(episode) => Some(Popup::new(
+            " Abriendo ".into(),
+            format!("\nAbriendo el episodio {episode} en mpv..."),
+        )),
+        PopupState::None => None,
+    };
+
+    if let Some(popup) = popup {
+        frame.render_widget(popup, get_popup_area(frame.area(), 40, 5));
+    }
 }
 
 pub fn handle_events_episodes(app: &mut App) {
@@ -72,11 +101,12 @@ pub fn handle_events_episodes(app: &mut App) {
     }) = event::read().expect("Couldn't read event")
     {
         let MenuState::Episodes {
-            state,
-            anime_list,
-            anime,
-            episodes,
-        } = &mut app.menu_state
+            ref mut state,
+            ref mut anime_list,
+            ref mut anime,
+            ref mut episodes,
+            ..
+        } = app.menu_state
         else {
             panic!("Invalid app state in episodes")
         };
@@ -84,8 +114,161 @@ pub fn handle_events_episodes(app: &mut App) {
         match code {
             KeyCode::Up | KeyCode::Char('k') => state.select_previous(),
             KeyCode::Down | KeyCode::Char('j') => state.select_next(),
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('s') | KeyCode::Enter => {
-                let use_syncplay = matches!(code, KeyCode::Char('s'));
+            KeyCode::Char('s') => {
+                let _ = anime_list;
+                if let Some(i) = state.selected() {
+                    let _ = state;
+                    let episode = episodes[i];
+                    let _ = episodes;
+                    let mirrors = match app.config.scraper {
+                        ScraperImpl::AnimeAv1Scraper => {
+                            AnimeAv1Scraper::try_get_mirrors(&app.client, &anime.names[1], episode)
+                                .expect("Couldn't get mirrors")
+                        }
+                        ScraperImpl::AnimeFlvScraper => {
+                            AnimeFlvScraper::try_get_mirrors(&app.client, &anime.names[1], episode)
+                                .expect("Couldn't get mirrors")
+                        }
+                    };
+                    let _ = anime;
+
+                    let viewable = mirrors
+                        .iter()
+                        .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+                        .collect_vec();
+
+                    let MenuState::Episodes { popup_state, .. } = &mut app.menu_state else {
+                        panic!("Invalid app state")
+                    };
+                    *popup_state = PopupState::Syncplay(episode);
+                    app.draw().unwrap();
+
+                    let success = viewable.iter().any(|mirror| {
+                        let mut command = Command::new(format!(
+                            "syncplay{}",
+                            if cfg!(target_os = "windows") {
+                                ".exe"
+                            } else {
+                                ""
+                            }
+                        ));
+
+                        command
+                            .arg(mirror)
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .status()
+                            .is_ok()
+                    });
+
+                    if !success {
+                        Notification::new()
+                            .summary("Ani-link")
+                            .body("No se ha podido abrir syncplay")
+                            .show()
+                            .unwrap();
+                    }
+                    while event::poll(Duration::from_secs(0)).unwrap_or(false) {
+                        event::read().unwrap();
+                    }
+
+                    let MenuState::Episodes { popup_state, .. } = &mut app.menu_state else {
+                        panic!("Invalid app state")
+                    };
+                    *popup_state = PopupState::None;
+                    app.draw().unwrap();
+                }
+            }
+            KeyCode::Char('d') => {
+                let _ = anime_list;
+                if let Some(i) = state.selected() {
+                    let _ = state;
+                    let episode = episodes[i];
+                    let _ = episodes;
+                    let mirrors = match app.config.scraper {
+                        ScraperImpl::AnimeAv1Scraper => {
+                            AnimeAv1Scraper::try_get_mirrors(&app.client, &anime.names[1], episode)
+                                .expect("Couldn't get mirrors")
+                        }
+                        ScraperImpl::AnimeFlvScraper => {
+                            AnimeFlvScraper::try_get_mirrors(&app.client, &anime.names[1], episode)
+                                .expect("Couldn't get mirrors")
+                        }
+                    };
+                    let anime = anime.clone();
+
+                    let viewable = mirrors
+                        .iter()
+                        .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+                        .collect_vec();
+
+                    let MenuState::Episodes { popup_state, .. } = &mut app.menu_state else {
+                        panic!("Invalid app state")
+                    };
+                    *popup_state = PopupState::Download(episode);
+                    app.draw().unwrap();
+
+                    let success = viewable.iter().all(|mirror| {
+                        Notification::new()
+                            .summary("Ani-link")
+                            .body(
+                                format!(
+                                    r#"Descargando episodio {episode} de {}, por favor, espera."#,
+                                    anime.names[0]
+                                )
+                                .as_str(),
+                            )
+                            .show()
+                            .unwrap();
+
+                        let mut command = Command::new(format!(
+                            "yt-dlp{}",
+                            if cfg!(target_os = "windows") {
+                                ".exe"
+                            } else {
+                                ""
+                            }
+                        ));
+
+                        let slug = anime.names[1].as_str();
+
+                        command
+                            .arg(mirror)
+                            .arg("--no-check-certificates")
+                            .arg("--output")
+                            .arg(format!(
+                                "{}/ani-link/{slug}/{slug}-{episode}.%(ext)s",
+                                video_dir()
+                                    .expect("Video path not found")
+                                    .into_os_string()
+                                    .into_string()
+                                    .expect("Video path could not be converted to string"),
+                            ))
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .status()
+                            .is_ok()
+                    });
+
+                    let MenuState::Episodes { popup_state, .. } = &mut app.menu_state else {
+                        panic!("Invalid app state")
+                    };
+                    *popup_state = PopupState::None;
+                    app.draw().unwrap();
+
+                    if !success {
+                        Notification::new()
+                            .summary("Ani-link")
+                            .body(&format!("No se ha podido descargar el episodio {episode}"))
+                            .show()
+                            .unwrap();
+                    }
+                    while event::poll(Duration::from_secs(0)).unwrap_or(false) {
+                        event::read().unwrap();
+                    }
+                }
+            }
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
                 if let Some(i) = state.selected() {
                     let episode = episodes[i];
                     let mirrors = match app.config.scraper {
@@ -104,54 +287,49 @@ pub fn handle_events_episodes(app: &mut App) {
                         .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
                         .collect_vec();
 
-                    let success = !viewable.iter().all(|mirror| {
+                    let success = viewable.iter().all(|mirror| {
+                        let MenuState::Episodes { popup_state, .. } = &mut app.menu_state else {
+                            panic!("Invalid app state")
+                        };
+                        *popup_state = PopupState::Mpv(episode);
+                        app.draw().unwrap();
+
                         Notification::new()
                             .summary("Ani-link")
                             .body(
-                                format!(
-                                    r#"Abriendo "{mirror}" en {}, por favor, espera."#,
-                                    if use_syncplay { "syncplay" } else { "mpv" }
-                                )
-                                .as_str(),
+                                format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#)
+                                    .as_str(),
                             )
                             .show()
                             .unwrap();
 
-                        let mut command = if use_syncplay {
-                            Command::new(format!(
-                                "syncplay{}",
-                                if cfg!(target_os = "windows") {
-                                    ".exe"
-                                } else {
-                                    ""
-                                }
-                            ))
-                        } else {
-                            Command::new(format!(
-                                "mpv{}",
-                                if cfg!(target_os = "windows") {
-                                    ".exe"
-                                } else {
-                                    ""
-                                }
-                            ))
-                        };
+                        let mut command = Command::new(format!(
+                            "mpv{}",
+                            if cfg!(target_os = "windows") {
+                                ".exe"
+                            } else {
+                                ""
+                            }
+                        ));
 
                         command
                             .arg(mirror)
-                            .output()
-                            .ok()
-                            .and_then(|output| output.status.code().filter(|&code| code == 0))
-                            .is_none()
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .status()
+                            .is_ok()
                     });
+
+                    let MenuState::Episodes { popup_state, .. } = &mut app.menu_state else {
+                        panic!("Invalid app state")
+                    };
+                    *popup_state = PopupState::None;
+                    app.draw().unwrap();
 
                     if !success {
                         Notification::new()
                             .summary("Ani-link")
-                            .body(&format!(
-                                "No se ha podido abrir {}",
-                                if use_syncplay { "syncplay" } else { "mpv" }
-                            ))
+                            .body("No se ha podido abrir mpv")
                             .show()
                             .unwrap();
                     }
