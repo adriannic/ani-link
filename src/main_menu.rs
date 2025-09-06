@@ -1,26 +1,21 @@
 use std::{fmt, mem};
 
-use ratatui::{
-    Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{Constraint, Rect},
-    style::{Style, Stylize},
-    symbols::border,
-    text::Line,
-    widgets::{Block, Clear, ListState, Paragraph},
+use iced::{
+    Length,
+    widget::{container, image, svg, text},
 };
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::{
-    app::App,
+    app::{App, AppEvent},
     menu_state::{ListQueryState, MenuState},
-    popup::{Popup, get_popup_area},
+    presets::square_box,
 };
 
 use super::search::SearchState;
 
-#[derive(EnumIter, PartialEq, Eq)]
+#[derive(EnumIter, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum MainMenuSelection {
     Search,
     Options,
@@ -41,139 +36,86 @@ impl fmt::Display for MainMenuSelection {
     }
 }
 
-pub fn draw_main_menu(frame: &mut Frame, content_area: Rect, searching: bool) {
-    let vertical = ratatui::layout::Layout::vertical([
-        Constraint::Fill(1),
-        Constraint::Length(7),
-        Constraint::Fill(1),
-    ]);
-
-    let [_, banner_area, _] = vertical.areas(content_area);
-
-    // Render banner
-    let right_banner = Paragraph::new(
-        "
- █████╗ ███╗   ██╗██╗      ██╗     ██╗███╗   ██╗██╗  ██╗
-██╔══██╗████╗  ██║██║      ██║     ██║████╗  ██║██║ ██╔╝
-███████║██╔██╗ ██║██║█████╗██║     ██║██╔██╗ ██║█████╔╝ 
-██╔══██║██║╚██╗██║██║╚════╝██║     ██║██║╚██╗██║██╔═██╗ 
-██║  ██║██║ ╚████║██║      ███████╗██║██║ ╚████║██║  ██╗
-╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝      ╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
-",
+pub fn draw_main_menu<'a>(app: &'a App, searching: bool) -> iced::Element<'a, AppEvent> {
+    square_box(
+        container(
+            svg("assets/logo.svg")
+                .width(Length::Fixed(800.0))
+                .height(Length::Fill),
+        )
+        .center(Length::Fill)
+        .padding(100),
+        app.theme.palette(),
     )
-    .block(Block::new())
-    .bold()
-    .blue()
-    .centered();
-
-    frame.render_widget(right_banner, banner_area);
-
-    // Render right block
-    let right_title = Line::from(
-        format!(" Ani-link v{} ", env!("CARGO_PKG_VERSION"))
-            .bold()
-            .white(),
-    )
-    .centered();
-
-    let right_instructions = Line::from(vec![
-        " Subir:".white(),
-        " ↑ K ".blue().bold(),
-        " Bajar:".white(),
-        " ↓ J ".blue().bold(),
-        " Confirmar:".white(),
-        " → L Enter ".blue().bold(),
-        " Salir:".white(),
-        " ← H Esc ".blue().bold(),
-    ]);
-
-    let right_block = Block::bordered()
-        .title(right_title)
-        .title_bottom(right_instructions.centered())
-        .border_set(border::THICK)
-        .border_style(Style::new().green());
-
-    frame.render_widget(right_block, content_area);
-
-    if searching {
-        let popup = Popup::new(
-            " Cargando... ".into(),
-            "\nCargando lista de animes...".into(),
-        );
-
-        let popup_area = get_popup_area(frame.area(), 40, 5);
-
-        frame.render_widget(Clear, popup_area);
-        frame.render_widget(popup, popup_area);
-    }
+    .into()
 }
 
 pub fn handle_events_main_menu(app: &mut App) {
-    if let Event::Key(KeyEvent {
-        code,
-        kind: KeyEventKind::Press,
-        ..
-    }) = event::read().expect("Couldn't read event from main menu")
-    {
-        match code {
-            KeyCode::Up | KeyCode::Char('k') => app.main_menu_selection.select_previous(),
-            KeyCode::Down | KeyCode::Char('j') => app.main_menu_selection.select_next(),
-            KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
-                if let Some(i) = app.main_menu_selection.selected() {
-                    let option = MainMenuSelection::iter().nth(i).unwrap();
-                    match option {
-                        MainMenuSelection::Search => {
-                            let MenuState::MainMenu {
-                                anime_list,
-                                should_draw_popup,
-                            } = &mut app.menu_state
-                            else {
-                                panic!("Invalid app state in main menu")
-                            };
-
-                            let anime_list = mem::take(anime_list);
-
-                            let anime_list = match anime_list {
-                                ListQueryState::Obtaining(..) => {
-                                    *should_draw_popup = true;
-                                    app.draw().unwrap();
-                                    anime_list.get()
-                                }
-                                ListQueryState::Obtained(..) => anime_list,
-                                _ => panic!("Invalid anime_list state"),
-                            };
-
-                            let ListQueryState::Obtained(anime_list) = anime_list else {
-                                panic!("Should not happen")
-                            };
-
-                            let filtered_list = anime_list.clone();
-
-                            app.menu_state = MenuState::Search {
-                                anime_list,
-                                search_state: SearchState::Searching,
-                                query: String::new(),
-                                anime_state: ListState::default().with_selected(Some(0)),
-                                filtered_list,
-                            }
-                        }
-                        MainMenuSelection::Options => {
-                            let MenuState::MainMenu { anime_list, .. } = &mut app.menu_state else {
-                                panic!("Invalid app state in main menu")
-                            };
-
-                            app.menu_state = MenuState::Options {
-                                anime_list: mem::take(anime_list),
-                                old_config: app.config.clone(),
-                                state: ListState::default().with_selected(Some(0)),
-                            }
-                        }
-                        MainMenuSelection::Exit => app.running = false,
-                    }
-                }
-            }
-            KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => app.running = false,
-            _ => {}
-        }
-    }
+    // if let Event::Key(KeyEvent {
+    //     code,
+    //     kind: KeyEventKind::Press,
+    //     ..
+    // }) = event::read().expect("Couldn't read event from main menu")
+    // {
+    //     match code {
+    //         KeyCode::Up | KeyCode::Char('k') => app.main_menu_selection.select_previous(),
+    //         KeyCode::Down | KeyCode::Char('j') => app.main_menu_selection.select_next(),
+    //         KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter => {
+    //             if let Some(i) = app.main_menu_selection.selected() {
+    //                 let option = MainMenuSelection::iter().nth(i).unwrap();
+    //                 match option {
+    //                     MainMenuSelection::Search => {
+    //                         let MenuState::MainMenu {
+    //                             anime_list,
+    //                             should_draw_popup,
+    //                         } = &mut app.menu_state
+    //                         else {
+    //                             panic!("Invalid app state in main menu")
+    //                         };
+    //
+    //                         let anime_list = mem::take(anime_list);
+    //
+    //                         let anime_list = match anime_list {
+    //                             ListQueryState::Obtaining(..) => {
+    //                                 *should_draw_popup = true;
+    //                                 app.draw().unwrap();
+    //                                 anime_list.get()
+    //                             }
+    //                             ListQueryState::Obtained(..) => anime_list,
+    //                             _ => panic!("Invalid anime_list state"),
+    //                         };
+    //
+    //                         let ListQueryState::Obtained(anime_list) = anime_list else {
+    //                             panic!("Should not happen")
+    //                         };
+    //
+    //                         let filtered_list = anime_list.clone();
+    //
+    //                         app.menu_state = MenuState::Search {
+    //                             anime_list,
+    //                             search_state: SearchState::Searching,
+    //                             query: String::new(),
+    //                             anime_state: ListState::default().with_selected(Some(0)),
+    //                             filtered_list,
+    //                         }
+    //                     }
+    //                     MainMenuSelection::Options => {
+    //                         let MenuState::MainMenu { anime_list, .. } = &mut app.menu_state else {
+    //                             panic!("Invalid app state in main menu")
+    //                         };
+    //
+    //                         app.menu_state = MenuState::Options {
+    //                             anime_list: mem::take(anime_list),
+    //                             old_config: app.config.clone(),
+    //                             state: ListState::default().with_selected(Some(0)),
+    //                         }
+    //                     }
+    //                     MainMenuSelection::Exit => app.running = false,
+    //                 }
+    //             }
+    //         }
+    //         KeyCode::Left | KeyCode::Char('h') | KeyCode::Esc => app.running = false,
+    //         _ => {}
+    //     }
+    // }
 }
