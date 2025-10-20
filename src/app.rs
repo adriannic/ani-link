@@ -38,7 +38,6 @@ pub enum AppEvent {
 }
 
 pub struct App {
-    pub running: bool,
     pub config: Config,
     pub menu_state: MenuState,
     pub main_menu_selection: MainMenuSelection,
@@ -60,7 +59,6 @@ impl Default for App {
         let scraper = config.scraper;
 
         Self {
-            running: true,
             config,
             menu_state: MenuState::MainMenu {
                 anime_list: ListQueryState::spawn(scraper, client.clone()),
@@ -164,12 +162,15 @@ impl App {
     }
 
     fn update(&mut self, message: AppEvent) {
-        match self.menu_state {
-            MenuState::MainMenu { .. } => handle_events_main_menu(self),
-            // MenuState::Search { .. } => handle_events_search(self),
-            // MenuState::Episodes { .. } => handle_events_episodes(self),
-            // MenuState::Options { .. } => handle_events_options(self),
-            _ => todo!(),
+        match message {
+            AppEvent::MainMenu(..) => handle_events_main_menu(self, message),
+            _ => match self.menu_state {
+                MenuState::MainMenu { .. } => handle_events_main_menu(self, message),
+                // MenuState::Search { .. } => handle_events_search(self),
+                // MenuState::Episodes { .. } => handle_events_episodes(self),
+                // MenuState::Options { .. } => handle_events_options(self),
+                _ => todo!(),
+            },
         }
     }
 }
