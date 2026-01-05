@@ -294,14 +294,14 @@ pub fn handle_events_episodes(app: &mut App) {
                         *popup_state = PopupState::Mpv(episode);
                         app.draw().unwrap();
 
-                        Notification::new()
+                        let _ = Notification::new()
                             .summary("Ani-link")
                             .body(
                                 format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#)
                                     .as_str(),
                             )
                             .show()
-                            .unwrap();
+                            .is_ok();
 
                         let mut command = Command::new(format!(
                             "mpv{}",
