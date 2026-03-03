@@ -5,23 +5,17 @@ use iced::{
 use rayon::prelude::*;
 use rust_fuzzy_search::fuzzy_compare;
 
-use crate::{app::AppEvent, scraper::anime::Anime};
+use crate::{app::Message, scraper::anime::Anime};
 
 use crate::app::App;
 
 const MAX_QUERY: usize = 80;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub enum SearchState {
-    Searching,
-    Choosing,
-}
-
 pub fn draw_search<'a>(
     app: &'a App,
     query: &str,
     filtered_list: &[Anime],
-) -> iced::Element<'a, AppEvent> {
+) -> iced::Element<'a, Message> {
     column![
         text_input("Buscar", query),
         horizontal_rule(1),

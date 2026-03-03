@@ -11,20 +11,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::scraper::ScraperImpl;
+use crate::themes::Themes;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Config {
     pub scraper: ScraperImpl,
-    pub pages: usize,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            scraper: ScraperImpl::AnimeAv1Scraper,
-            pages: 40,
-        }
-    }
+    pub theme: Themes,
 }
 
 impl Config {

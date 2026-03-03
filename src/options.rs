@@ -4,39 +4,17 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::{
-    app::{App, AppEvent},
+    app::{App, Message},
     scraper::ScraperImpl,
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum OptionEvent {
-    UpdateScraper(ScraperImpl),
-}
-
-#[derive(EnumIter)]
-pub enum Options {
-    Scraper,
-}
-
-impl fmt::Display for Options {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Scraper => "Scraper",
-            }
-        )
-    }
-}
-
-pub fn draw_options<'a>(app: &'a App) -> iced::Element<'a, AppEvent> {
+pub fn draw_options<'a>(app: &'a App) -> iced::Element<'a, Message> {
     column![pick_list(
         ScraperImpl::iter()
             .map(|scraper| scraper.to_string())
             .collect::<Vec<_>>(),
         Some(app.config.scraper.to_string()),
-        |_| { AppEvent::Options(OptionEvent::UpdateScraper(app.config.scraper.next())) }
+        |_| { Message::Options(OptionEvent::UpdateScraper(app.config.scraper.next())) }
     )].into()
 }
 

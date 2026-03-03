@@ -1,14 +1,14 @@
 use iced::{widget::{scrollable, text, Column}, Element};
 
 use crate::{
-    app::{App, AppEvent},
+    app::{App, Message},
 };
 
 const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
 
 pub fn draw_episodes<'a>(
     episodes: &[f64],
-) -> iced::Element<'a, AppEvent> {
+) -> iced::Element<'a, Message> {
     scrollable(Column::with_children(
         episodes.iter().map(|episode| Element::from(text(episode))),
     )).into()

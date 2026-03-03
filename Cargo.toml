@@ -24,3 +24,4 @@ strum_macros = "0.27.2"
 tokio = { version = "1.47.1", features = ["full"] }
 toml = "0.9.5"
 iced = { version = "0.13.1", features = ["image", "svg"] }
+colors-transform = "0.2.11"

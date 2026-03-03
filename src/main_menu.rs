@@ -7,36 +7,14 @@ use iced::{
 use strum_macros::EnumIter;
 
 use crate::{
-    app::{App, AppEvent},
-    menu_state::{ListQueryState, MenuState},
+    app::{App, Message},
     options::Options,
     presets::square_box,
 };
 
 use super::search::SearchState;
 
-#[derive(EnumIter, PartialEq, Eq, Clone, Copy, Debug)]
-pub enum MainMenuSelection {
-    Search,
-    Options,
-    Exit,
-}
-
-impl fmt::Display for MainMenuSelection {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Self::Search => "Buscar",
-                Self::Options => "Opciones",
-                Self::Exit => "Salir",
-            }
-        )
-    }
-}
-
-pub fn draw_main_menu<'a>(app: &'a App, searching: bool) -> iced::Element<'a, AppEvent> {
+pub fn draw_main_menu<'a>(app: &'a App, searching: bool) -> iced::Element<'a, Message> {
     square_box(
         container(
             svg("assets/logo.svg")
@@ -50,45 +28,45 @@ pub fn draw_main_menu<'a>(app: &'a App, searching: bool) -> iced::Element<'a, Ap
     .into()
 }
 
-pub fn handle_events_main_menu(app: &mut App, message: AppEvent) {
-    let state = match &mut app.menu_state {
-        MenuState::Search { anime_list, .. } => {
-            app.menu_state = MenuState::MainMenu {
+pub fn handle_events_main_menu(app: &mut App, message: Message) {
+    let page = match &mut app.page {
+        Page::Search { anime_list, .. } => {
+            app.page = Page::MainMenu {
                 anime_list: ListQueryState::Obtained(mem::take(anime_list)),
                 should_draw_popup: false,
             };
 
-            &mut app.menu_state
+            &mut app.page
         }
-        MenuState::Episodes { anime_list, .. } => {
-            app.menu_state = MenuState::MainMenu {
+        Page::Episodes { anime_list, .. } => {
+            app.page = Page::MainMenu {
                 anime_list: ListQueryState::Obtained(mem::take(anime_list)),
                 should_draw_popup: false,
             };
 
-            &mut app.menu_state
+            &mut app.page
         }
-        MenuState::Options { anime_list, .. } => {
-            app.menu_state = MenuState::MainMenu {
+        Page::Options { anime_list, .. } => {
+            app.page = Page::MainMenu {
                 anime_list: mem::take(anime_list),
                 should_draw_popup: false,
             };
 
-            &mut app.menu_state
+            &mut app.page
         }
-        MenuState::MainMenu { .. } => &mut app.menu_state,
+        Page::MainMenu { .. } => &mut app.page,
     };
 
-    let MenuState::MainMenu {
+    let Page::MainMenu {
         anime_list,
         should_draw_popup,
-    } = state
+    } = page
     else {
         panic!("Should not happen");
     };
 
     match message {
-        AppEvent::MainMenu(selection) => match selection {
+        Message::MainMenu(selection) => match selection {
             MainMenuSelection::Search => {
                 let anime_list = mem::take(anime_list);
 
@@ -108,20 +86,23 @@ pub fn handle_events_main_menu(app: &mut App, message: AppEvent) {
 
                 let filtered_list = anime_list.clone();
 
-                app.menu_state = MenuState::Search {
+                app.page = Page::Search {
                     anime_list,
                     search_state: SearchState::Searching,
                     query: String::new(),
                     anime_state: 0,
                     filtered_list,
                 };
+
+                app.main_menu_selection = MainMenuSelection::Search;
             }
             MainMenuSelection::Options => {
-                app.menu_state = MenuState::Options {
+                app.page = Page::Options {
                     anime_list: mem::take(anime_list),
                     old_config: app.config.clone(),
                     state: Options::Scraper,
                 };
+                app.main_menu_selection = MainMenuSelection::Options;
             }
             MainMenuSelection::Exit => exit(0),
         },
