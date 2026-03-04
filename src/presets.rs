@@ -6,7 +6,7 @@ use iced::{
 };
 use strum::IntoEnumIterator;
 
-fn highlight(color: iced::Color, percentage: f32) -> iced::Color {
+pub fn highlight(color: iced::Color, percentage: f32) -> iced::Color {
     let [r, g, b, a] = color.into_rgba8();
     let text_color = Rgb::from(r as f32, g as f32, b as f32);
     let is_text_dark = (text_color.to_hsl().get_lightness() / 100.0).round() as u8 == 0;
@@ -53,6 +53,29 @@ pub fn help_text<'a, Message: 'a>(
 }
 
 pub fn transparent_button<'a, Message: 'a>(content: &str, selected: bool) -> Button<'a, Message> {
+    let string = if selected {
+        format!("> {content}")
+    } else {
+        format!("  {content}")
+    };
+
+    button(text(string))
+        .style(move |theme: &iced::Theme, status| button::Style {
+            text_color: if selected || matches!(status, button::Status::Hovered) {
+                highlight(theme.palette().text, 20.0)
+            } else {
+                theme.palette().text
+            },
+            ..Default::default()
+        })
+        .padding(0)
+}
+
+pub fn transparent_button_cond<'a, Message: 'a>(
+    content: &str,
+    selected: impl Fn() -> bool,
+) -> Button<'a, Message> {
+    let selected = selected();
     let string = if selected {
         format!("> {content}")
     } else {

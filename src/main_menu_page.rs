@@ -22,6 +22,7 @@ use iced::widget::column;
 use iced::widget::container;
 use iced::widget::row;
 use iced::widget::text;
+use iced::widget::text_input;
 use reqwest::blocking::Client;
 use strum_macros::EnumIter;
 
@@ -29,10 +30,11 @@ use crate::app;
 use crate::config::Config;
 use crate::options_page;
 use crate::options_page::OptionsPage;
+use crate::page::AppUpdate;
 use crate::presets::help_text;
 use crate::presets::transparent_button_sized;
+use crate::search_page::SEARCH_BAR_ID;
 use crate::search_page::SearchPage;
-use crate::search_page::SearchState;
 use crate::{list_query_state::ListQueryState, page::Page, presets::square_box};
 
 #[derive(Debug, Clone)]
@@ -90,56 +92,6 @@ pub struct MainMenuPage {
 
 impl Page for MainMenuPage {
     fn view(&self) -> iced::Element<'_, app::Message> {
-        // row![
-        //     square_box(
-        //         column![
-        //             transparent_button("Buscar", matches!(self.selection, Selection::Search))
-        //                 .width(Length::Fill)
-        //                 .on_press(app::Message::MainMenu(Message::Select(Selection::Search))),
-        //             transparent_button("Opciones", matches!(self.selection, Selection::Options))
-        //                 .width(Length::Fill)
-        //                 .on_press(app::Message::MainMenu(Message::Select(Selection::Options))),
-        //             transparent_button("Salir", matches!(self.selection, Selection::Exit))
-        //                 .width(Length::Fill)
-        //                 .on_press(app::Message::MainMenu(Message::Select(Selection::Exit))),
-        //             Space::with_height(Length::Fill),
-        //             container(
-        //                 column![
-        //                     text("Subir:"),
-        //                     help_text("↑ K"),
-        //                     "",
-        //                     text("Bajar:"),
-        //                     help_text("↓ J"),
-        //                     "",
-        //                     text("Confirmar:"),
-        //                     help_text("→ L Enter"),
-        //                     "",
-        //                     text("Salir:"),
-        //                     help_text("← H Esc"),
-        //                     "",
-        //                 ]
-        //                 .align_x(Horizontal::Center)
-        //                 .width(Length::Fill)
-        //             )
-        //             .align_y(Vertical::Bottom)
-        //             .width(Length::Fill)
-        //         ]
-        //         .padding(6),
-        //     )
-        //     .width(Length::Fixed(120.0))
-        //     .height(Length::Fill),
-        //     square_box(
-        //         container(
-        //             svg("assets/logo.svg")
-        //                 .width(Length::Fixed(800.0))
-        //                 .height(Length::Fill),
-        //         )
-        //         .center(Length::Fill)
-        //         .padding(100),
-        //     )
-        // ]
-        // .padding(3)
-        // .into()
         square_box(column![
             Space::with_height(Length::Fill),
             container(
@@ -191,13 +143,13 @@ impl Page for MainMenuPage {
             ])
             .align_x(Horizontal::Center)
             .width(Length::Fill),
-            Space::with_height(Length::Fixed(4.0)),
+            Space::with_height(Length::Fixed(3.0)),
         ])
         .into()
     }
 
-    fn update(&mut self, message: app::Message) -> Option<Box<dyn Page>> {
-        let mut change_selection = |selection| -> Option<Box<dyn Page>> {
+    fn update(&mut self, message: app::Message) -> AppUpdate {
+        let mut change_selection = |selection| -> AppUpdate {
             match selection {
                 Selection::Search => {
                     let anime_list = mem::take(&mut self.anime_list);
@@ -213,18 +165,20 @@ impl Page for MainMenuPage {
 
                     let filtered_list = anime_list.clone();
 
-                    Some(Box::new(SearchPage {
-                        config: mem::take(&mut self.config),
-                        client: mem::take(&mut self.client),
-                        theme: mem::take(&mut self.theme),
-                        anime_list,
-                        search_state: SearchState::Searching,
-                        query: String::new(),
-                        anime_state: 0,
-                        filtered_list,
-                    }))
+                    AppUpdate::Both((
+                        Box::new(SearchPage {
+                            config: mem::take(&mut self.config),
+                            client: mem::take(&mut self.client),
+                            theme: mem::take(&mut self.theme),
+                            anime_list,
+                            query: String::new(),
+                            selected: 0,
+                            filtered_list,
+                        }),
+                        text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
+                    ))
                 }
-                Selection::Options => Some(Box::new(OptionsPage {
+                Selection::Options => AppUpdate::Page(Box::new(OptionsPage {
                     old_config: self.config.clone(),
                     config: mem::take(&mut self.config),
                     client: mem::take(&mut self.client),
@@ -242,17 +196,17 @@ impl Page for MainMenuPage {
                 Message::KeyPressed(key) => match key.as_ref() {
                     Key::Character("j") | Key::Named(ArrowDown) => {
                         self.selection = self.selection.next();
-                        None
+                        AppUpdate::None
                     }
                     Key::Character("k") | Key::Named(ArrowUp) => {
                         self.selection = self.selection.prev();
-                        None
+                        AppUpdate::None
                     }
                     Key::Character("l") | Key::Named(Enter) | Key::Named(ArrowRight) => {
                         change_selection(self.selection)
                     }
                     Key::Character("h") | Key::Named(Escape) | Key::Named(ArrowLeft) => exit(0),
-                    _ => None,
+                    _ => AppUpdate::None,
                 },
             }
         } else {

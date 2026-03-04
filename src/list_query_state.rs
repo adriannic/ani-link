@@ -2,7 +2,10 @@ use std::thread::{self, JoinHandle};
 
 use reqwest::blocking::Client;
 
-use crate::scraper::{anime::Anime, animeav1scraper::AnimeAv1Scraper, animeflvscraper::AnimeFlvScraper, Scraper, ScraperImpl};
+use crate::scraper::{
+    Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
+    animeflvscraper::AnimeFlvScraper,
+};
 
 pub enum ListQueryState {
     Obtaining(JoinHandle<Vec<Anime>>),
@@ -36,4 +39,3 @@ impl ListQueryState {
         }
     }
 }
-

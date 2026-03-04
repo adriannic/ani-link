@@ -9,3 +9,4 @@ mod episodes_page;
 mod options_page;
 mod list_query_state;
 mod themes;
+mod cached_image;

@@ -19,7 +19,7 @@ use crate::{
     config::Config,
     list_query_state::ListQueryState,
     main_menu_page::{self, MainMenuPage},
-    page::Page,
+    page::{AppUpdate, Page},
     presets::{help_text, options_item, square_box},
     scraper::ScraperImpl,
     themes::Themes,
@@ -121,68 +121,74 @@ impl Page for OptionsPage {
             ])
             .align_x(Horizontal::Center)
             .width(Length::Fill),
-            Space::with_height(Length::Fixed(4.0)),
+            Space::with_height(Length::Fixed(3.0)),
         ])
         .into()
     }
 
-    fn update(&mut self, message: app::Message) -> Option<Box<dyn Page>> {
+    fn update(&mut self, message: app::Message) -> AppUpdate {
         if let app::Message::Options(message) = message {
             match message {
                 Message::UpdateScraper(scraper) => {
                     self.config.scraper = scraper;
-                    None
+                    AppUpdate::None
                 }
                 Message::UpdateTheme(theme) => {
                     self.config.theme = theme;
                     self.theme = theme.into();
-                    None
+                    AppUpdate::None
                 }
                 Message::KeyPressed(key) => match key.as_ref() {
                     Key::Character("j") | Key::Named(ArrowDown) => {
                         self.selection = self.selection.next();
-                        None
+                        AppUpdate::None
                     }
                     Key::Character("k") | Key::Named(ArrowUp) => {
                         self.selection = self.selection.prev();
-                        None
+                        AppUpdate::None
                     }
                     Key::Character("l") | Key::Named(ArrowRight) => match self.selection {
                         Options::Scraper => {
                             self.config.scraper = self.config.scraper.next();
-                            None
+                            AppUpdate::None
                         }
                         Options::Theme => {
                             self.config.theme = self.config.theme.next();
                             self.theme = self.config.theme.into();
-                            None
+                            AppUpdate::None
                         }
                     },
                     Key::Character("h") | Key::Named(ArrowLeft) => match self.selection {
                         Options::Scraper => {
                             self.config.scraper = self.config.scraper.prev();
-                            None
+                            AppUpdate::None
                         }
                         Options::Theme => {
                             self.config.theme = self.config.theme.prev();
                             self.theme = self.config.theme.into();
-                            None
+                            AppUpdate::None
                         }
                     },
-                    Key::Named(Enter) => Some(Box::new(MainMenuPage {
-                        config: mem::take(&mut self.config),
-                        client: self.client.clone(),
-                        theme: mem::take(&mut self.theme),
-                        selection: main_menu_page::Selection::Options,
-                        anime_list: if self.config.scraper == self.old_config.scraper {
-                            mem::take(&mut self.anime_list)
-                        } else {
-                            ListQueryState::spawn(self.config.scraper, mem::take(&mut self.client))
-                        },
-                    })),
+                    Key::Named(Enter) => {
+                        self.config.save().expect("Couldn't save config");
+                        AppUpdate::Page(Box::new(MainMenuPage {
+                            config: mem::take(&mut self.config),
+                            client: self.client.clone(),
+                            theme: mem::take(&mut self.theme),
+                            selection: main_menu_page::Selection::Options,
+                            anime_list: if self.config.scraper == self.old_config.scraper {
+                                mem::take(&mut self.anime_list)
+                            } else {
+                                ListQueryState::spawn(
+                                    self.config.scraper,
+                                    mem::take(&mut self.client),
+                                )
+                            },
+                        }))
+                    }
                     Key::Character("q") | Key::Named(Escape) => {
                         self.theme = self.old_config.theme.into();
-                        Some(Box::new(MainMenuPage {
+                        AppUpdate::Page(Box::new(MainMenuPage {
                             config: mem::take(&mut self.old_config),
                             client: mem::take(&mut self.client),
                             theme: mem::take(&mut self.theme),
@@ -190,7 +196,7 @@ impl Page for OptionsPage {
                             anime_list: mem::take(&mut self.anime_list),
                         }))
                     }
-                    _ => None,
+                    _ => AppUpdate::None,
                 },
             }
         } else {

@@ -5,6 +5,7 @@ pub struct Anime {
     pub names: Vec<String>,
     pub synopsis: String,
     pub image_url: String,
+    pub image_filename: String,
 }
 
 impl fmt::Display for Anime {

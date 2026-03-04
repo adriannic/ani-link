@@ -1,16 +1,20 @@
-use crate::list_query_state::ListQueryState;
-use crate::main_menu_page::{self, MainMenuPage};
-use crate::options_page;
-use crate::page::Page;
-use iced::{Font, Settings};
+use iced::{Font, Settings, Task};
 use reqwest::blocking::Client;
 
-use crate::config::Config;
+use crate::{
+    config::Config,
+    list_query_state::ListQueryState,
+    main_menu_page::{self, MainMenuPage},
+    options_page,
+    page::{AppUpdate, Page},
+    search_page,
+};
 
 #[derive(Debug, Clone)]
 pub enum Message {
     MainMenu(main_menu_page::Message),
     Options(options_page::Message),
+    Search(search_page::Message),
 }
 
 pub struct App {
@@ -31,13 +35,15 @@ impl Default for App {
         let scraper = config.scraper;
         let theme = config.theme.into();
 
+        let anime_list = ListQueryState::spawn(scraper, client.clone());
+
         Self {
             page: Box::new(MainMenuPage {
                 config,
-                client: client.clone(),
+                client,
                 theme,
                 selection: main_menu_page::Selection::Search,
-                anime_list: ListQueryState::spawn(scraper, client),
+                anime_list,
             }),
         }
     }
@@ -66,10 +72,19 @@ impl App {
         self.page.view()
     }
 
-    fn update(&mut self, message: Message) {
-        let page = self.page.update(message);
-        if let Some(p) = page {
-            self.page = p;
+    fn update(&mut self, message: Message) -> Task<Message> {
+        let update = self.page.update(message);
+        match update {
+            AppUpdate::Page(page) => {
+                self.page = page;
+                Task::none()
+            }
+            AppUpdate::Task(task) => task,
+            AppUpdate::Both((page, task)) => {
+                self.page = page;
+                task
+            }
+            AppUpdate::None => Task::none(),
         }
     }
 
