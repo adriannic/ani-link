@@ -1,4 +1,4 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, str::FromStr};
 
 use anime::Anime;
 use clap::ValueEnum;
@@ -10,11 +10,29 @@ pub mod anime;
 pub mod animeav1scraper;
 pub mod animeflvscraper;
 
-#[derive(ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParseScraperError;
+
+#[derive(
+    ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default,
+)]
 #[clap(rename_all = "PascalCase")]
 pub enum ScraperImpl {
+    #[default]
     AnimeAv1Scraper,
     AnimeFlvScraper,
+}
+
+impl FromStr for ScraperImpl {
+    type Err = ParseScraperError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "AnimeAv1Scraper" => Ok(Self::AnimeAv1Scraper),
+            "AnimeFlvScraper" => Ok(Self::AnimeFlvScraper),
+            _ => Err(ParseScraperError {}),
+        }
+    }
 }
 
 impl fmt::Display for ScraperImpl {
@@ -24,14 +42,14 @@ impl fmt::Display for ScraperImpl {
 }
 
 impl ScraperImpl {
-    pub fn previous(self) -> Self {
+    pub fn next(self) -> Self {
         match self {
             Self::AnimeAv1Scraper => Self::AnimeFlvScraper,
             Self::AnimeFlvScraper => Self::AnimeAv1Scraper,
         }
     }
 
-    pub fn next(self) -> Self {
+    pub fn prev(self) -> Self {
         match self {
             Self::AnimeAv1Scraper => Self::AnimeFlvScraper,
             Self::AnimeFlvScraper => Self::AnimeAv1Scraper,

@@ -30,12 +30,18 @@ impl Scraper for AnimeFlvScraper {
             .par_bridge()
             .filter_map(|c| {
                 let slug = c.get(1)?.as_str();
-                let title = c.get(2)?.as_str();
-                let img = c.get(3)?.as_str();
+                let id = c.get(2)?.as_str();
+                let title = c.get(3)?.as_str().replace(r#"\""#, r#"""#);
+                let synopsis = c
+                    .get(4)?
+                    .as_str()
+                    .replace(r#"\""#, r#"""#)
+                    .replace(r#"\n"#, "\n");
                 Some(Anime {
-                    names: vec![title.into(), slug.into()],
-                    synopsis: title.into(),
-                    image_url: img.into(),
+                    names: vec![title, slug.into()],
+                    synopsis,
+                    image_url: format!("https://www3.animeflv.net/uploads/animes/covers/{id}.jpg"),
+                    image_filename: format!("{id}.jpg"),
                 })
             })
             .collect::<Vec<_>>();

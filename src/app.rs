@@ -1,34 +1,25 @@
-use main_menu::{MainMenuSelection, draw_main_menu, handle_events_main_menu};
-use ratatui::DefaultTerminal;
-use ratatui::layout::{Constraint, Layout};
-use ratatui::style::{Style, Stylize};
-use ratatui::symbols::border;
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Clear, List, ListDirection, ListState};
+use iced::{Font, Settings, Task};
 use reqwest::blocking::Client;
-use search::{draw_search, handle_events_search};
-use std::error::Error;
-use strum::IntoEnumIterator;
 
-use crate::config::Config;
-use crate::episodes::{draw_episodes, handle_events_episodes};
-use crate::menu_state::{ListQueryState, MenuState};
-use crate::options::{draw_options, handle_events_options};
-use crate::{main_menu, search};
+use crate::{
+    config::Config, episodes_page, list_query_state::ListQueryState, main_menu_page::{self, MainMenuPage}, options_page, page::{AppUpdate, Page}, search_page
+};
 
-pub struct App {
-    pub running: bool,
-    pub config: Config,
-    pub menu_state: MenuState,
-    pub main_menu_selection: ListState,
-    pub terminal: DefaultTerminal,
-    pub client: Client,
+#[derive(Debug, Clone)]
+pub enum Message {
+    MainMenu(main_menu_page::Message),
+    Options(options_page::Message),
+    Search(search_page::Message),
+    Episodes(episodes_page::Message),
 }
 
-impl App {
-    pub fn init() -> Result<Self, Box<dyn Error>> {
-        let config: Config = Config::init()?;
-        let term = ratatui::init();
+pub struct App {
+    pub page: Box<dyn Page>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        let config: Config = Config::init().expect("Couldn't initialize config");
         let client = Client::builder()
             .user_agent(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0",
@@ -38,115 +29,61 @@ impl App {
             .expect("Couldn't build client");
 
         let scraper = config.scraper;
+        let theme = config.theme.into();
 
-        Ok(Self {
-            running: true,
-            config,
-            menu_state: MenuState::MainMenu {
-                anime_list: ListQueryState::spawn(scraper, client.clone()),
-                should_draw_popup: false,
-            },
-            main_menu_selection: ListState::default().with_selected(Some(0)),
-            terminal: term,
-            client,
-        })
-    }
+        let anime_list = ListQueryState::spawn(scraper, client.clone());
 
-    pub fn run(mut self) -> Result<(), Box<dyn Error>> {
-        while self.running {
-            self.draw()?;
-            self.handle_events()?;
+        Self {
+            page: Box::new(MainMenuPage {
+                config,
+                client,
+                theme,
+                selection: main_menu_page::Selection::Search,
+                anime_list,
+            }),
         }
-
-        Ok(())
-    }
-
-    pub(crate) fn draw(&mut self) -> Result<(), Box<dyn Error>> {
-        self.terminal.draw(|frame| {
-            frame.render_widget(Clear, frame.area());
-
-            // Divide areas
-            let horizontal = Layout::horizontal([Constraint::Length(20), Constraint::Fill(1)]);
-
-            let [menu_selector_area, content_area] = horizontal.areas(frame.area());
-
-            match self.menu_state {
-                MenuState::MainMenu {
-                    should_draw_popup: searching,
-                    ..
-                } => draw_main_menu(frame, content_area, searching),
-                MenuState::Search {
-                    search_state,
-                    ref query,
-                    ref mut anime_state,
-                    ref filtered_list,
-                    ..
-                } => {
-                    draw_search(
-                        frame,
-                        content_area,
-                        search_state,
-                        query,
-                        anime_state,
-                        filtered_list,
-                    );
-                }
-                MenuState::Options { ref mut state, .. } => {
-                    draw_options(frame, content_area, &self.config, state)
-                }
-                MenuState::Episodes {
-                    popup_state,
-                    ref mut state,
-                    ref anime,
-                    ref episodes,
-                    ..
-                } => draw_episodes(frame, content_area, popup_state, anime, state, episodes),
-            }
-
-            // Render Main menu option list
-            let list_title = Line::from(" Menú principal ".bold().white()).centered();
-
-            let list_block = Block::bordered()
-                .title(list_title)
-                .border_set(border::THICK)
-                .border_style(Style::new().green());
-
-            let items = MainMenuSelection::iter().map(|scraper| scraper.to_string());
-
-            let mut main_menu_list = List::new(items)
-                .block(list_block)
-                .highlight_symbol("> ")
-                .highlight_style(Style::new().bold())
-                .repeat_highlight_symbol(true)
-                .direction(ListDirection::TopToBottom);
-
-            if !matches!(self.menu_state, MenuState::MainMenu { .. }) {
-                main_menu_list = main_menu_list.style(Style::new().gray());
-            }
-
-            frame.render_stateful_widget(
-                main_menu_list,
-                menu_selector_area,
-                &mut self.main_menu_selection,
-            );
-        })?;
-        Ok(())
-    }
-
-    fn handle_events(&mut self) -> Result<(), Box<dyn Error>> {
-        match self.menu_state {
-            MenuState::MainMenu { .. } => handle_events_main_menu(self),
-            MenuState::Search { .. } => handle_events_search(self),
-            MenuState::Episodes { .. } => handle_events_episodes(self),
-            MenuState::Options { .. } => handle_events_options(self),
-        }
-
-        Ok(())
     }
 }
 
-impl Drop for App {
-    fn drop(&mut self) {
-        ratatui::restore();
+impl App {
+    pub fn run() -> iced::Result {
+        iced::application("Ani-Link", App::update, App::view)
+            .theme(|app| app.page.theme())
+            .subscription(App::subscription)
+            .transparent(true)
+            .antialiasing(true)
+            .settings(Settings {
+                ..Default::default()
+            })
+            .font(include_bytes!("../assets/font.ttf"))
+            .default_font(Font {
+                weight: iced::font::Weight::Normal,
+                ..Font::with_name("FiraCode Nerd Font Mono")
+            })
+            .run()
+    }
+
+    pub(crate) fn view(&self) -> iced::Element<'_, Message> {
+        self.page.view()
+    }
+
+    fn update(&mut self, message: Message) -> Task<Message> {
+        let update = self.page.update(message);
+        match update {
+            AppUpdate::Page(page) => {
+                self.page = page;
+                Task::none()
+            }
+            AppUpdate::Task(task) => task,
+            AppUpdate::Both((page, task)) => {
+                self.page = page;
+                task
+            }
+            AppUpdate::None => Task::none(),
+        }
+    }
+
+    fn subscription(&self) -> iced::Subscription<Message> {
+        self.page.subscription()
     }
 }

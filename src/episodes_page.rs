@@ -1,0 +1,378 @@
+use std::{
+    mem,
+    process::{Command, Stdio},
+};
+
+use crate::{
+    app,
+    config::Config,
+    page::{AppUpdate, Page},
+    presets::{help_text, square_box, transparent_button_cond},
+    scraper::{
+        Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
+        animeflvscraper::AnimeFlvScraper,
+    },
+    search_page::SearchPage,
+};
+use dirs::video_dir;
+use iced::{
+    Element, Event, Length, Padding, Task, Theme,
+    alignment::Horizontal,
+    event::{self, Status},
+    keyboard::{
+        Event::KeyPressed,
+        Key,
+        key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
+    },
+    widget::{
+        Column, Scrollable, column, container, row,
+        scrollable::{self, Direction, Scrollbar},
+        text,
+    },
+};
+use itertools::Itertools;
+use notify_rust::Notification;
+use reqwest::blocking::Client;
+
+const EPISODES_SCROLLABLE_ID: &str = "episodes_scrollable";
+const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Select(usize),
+    Click(usize),
+    KeyPressed(Key),
+}
+
+pub struct EpisodesPage {
+    pub config: Config,
+    pub client: Client,
+    pub theme: Theme,
+    pub selected: usize,
+    pub anime_list: Vec<Anime>,
+    pub anime: Anime,
+    pub episodes: Vec<f64>,
+}
+
+impl Page for EpisodesPage {
+    fn view(&self) -> iced::Element<'_, crate::app::Message> {
+        let selected = self.selected;
+        column![
+            square_box(
+                column![
+                    container(
+                        Scrollable::new(Column::with_children(
+                            self.episodes
+                                .iter()
+                                .enumerate()
+                                .map(|(i, episode)| {
+                                    Element::new(
+                                        transparent_button_cond(&format!("{episode}"), || {
+                                            selected == i
+                                        })
+                                        .on_press(app::Message::Episodes(Message::Click(i))),
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                        ))
+                        .id(scrollable::Id::new(EPISODES_SCROLLABLE_ID))
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .direction(Direction::Vertical(Scrollbar::new()))
+                    )
+                    .padding(Padding {
+                        top: 6.0,
+                        right: 6.0,
+                        bottom: 3.0,
+                        left: 6.0
+                    }),
+                    container(row![
+                        text("Subir:"),
+                        help_text(" ↑ K "),
+                        text(" Bajar:"),
+                        help_text(" ↓ J "),
+                        text(" Confirmar:"),
+                        help_text(" → L Enter "),
+                        text(" Descargar:"),
+                        help_text(" D "),
+                        text(" Syncplay:"),
+                        help_text(" S "),
+                        text(" Salir:"),
+                        help_text(" ← H Esc Q"),
+                    ])
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill),
+                ]
+                .spacing(3)
+                .padding(3)
+            )
+            .width(Length::Fill),
+        ]
+        .into()
+    }
+
+    fn update(&mut self, message: crate::app::Message) -> AppUpdate {
+        if let app::Message::Episodes(message) = message {
+            match message {
+                Message::Click(index) => {
+                    if self.selected != index {
+                        self.selected = index;
+                        return AppUpdate::None;
+                    }
+
+                    self.play_episode();
+
+                    AppUpdate::None
+                }
+                Message::KeyPressed(key) => match key.as_ref() {
+                    Key::Character("j") | Key::Named(ArrowDown) => {
+                        if self.selected < self.episodes.len() - 1 {
+                            self.selected += 1;
+                            return AppUpdate::Task(self.scroll_to_index());
+                        }
+                        AppUpdate::None
+                    }
+                    Key::Character("k") | Key::Named(ArrowUp) => {
+                        if self.selected > 0 {
+                            self.selected -= 1;
+                            return AppUpdate::Task(self.scroll_to_index());
+                        }
+                        AppUpdate::None
+                    }
+                    Key::Character("l") | Key::Named(ArrowRight) | Key::Named(Enter) => {
+                        self.play_episode();
+                        AppUpdate::None
+                    }
+                    Key::Character("d") => {
+                        self.download_episode();
+                        AppUpdate::None
+                    }
+                    Key::Character("s") => {
+                        self.stream_episode();
+                        AppUpdate::None
+                    }
+                    Key::Character("q")
+                    | Key::Named(Escape)
+                    | Key::Character("h")
+                    | Key::Named(ArrowLeft) => AppUpdate::Page(Box::new(SearchPage {
+                        config: mem::take(&mut self.config),
+                        client: mem::take(&mut self.client),
+                        theme: self.theme.clone(),
+                        anime_list: self.anime_list.clone(),
+                        query: String::new(),
+                        selected: 0,
+                        filtered_list: mem::take(&mut self.anime_list),
+                    })),
+                    _ => AppUpdate::None,
+                },
+                _ => AppUpdate::None,
+            }
+        } else {
+            panic!("search menu event handler called for non search menu event")
+        }
+    }
+
+    fn subscription(&self) -> iced::Subscription<crate::app::Message> {
+        event::listen_with(move |event, status, _| match (event, status) {
+            (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
+                Some(app::Message::Episodes(Message::KeyPressed(key)))
+            }
+            _ => None,
+        })
+    }
+
+    fn theme(&self) -> iced::Theme {
+        self.theme.clone()
+    }
+}
+
+impl EpisodesPage {
+    fn scroll_to_index(&self) -> Task<app::Message> {
+        let list_len = self.episodes.len();
+
+        if self.selected >= list_len {
+            return Task::none();
+        }
+
+        let offset = self.selected as f32 / list_len as f32;
+
+        scrollable::snap_to(
+            scrollable::Id::new(EPISODES_SCROLLABLE_ID),
+            scrollable::RelativeOffset {
+                x: 0.0,
+                y: offset.clamp(0.0, 1.0),
+            },
+        )
+    }
+
+    fn play_episode(&mut self) {
+        let episode = self.episodes[self.selected];
+        let mirrors = match self.config.scraper {
+            ScraperImpl::AnimeAv1Scraper => {
+                AnimeAv1Scraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
+                    .expect("Couldn't get mirrors")
+            }
+            ScraperImpl::AnimeFlvScraper => {
+                AnimeFlvScraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
+                    .expect("Couldn't get mirrors")
+            }
+        };
+
+        let viewable = mirrors
+            .iter()
+            .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+            .collect_vec();
+
+        let success = viewable.iter().all(|mirror| {
+            Notification::new()
+                .summary("Ani-link")
+                .body(format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str())
+                .show()
+                .unwrap();
+
+            let mut command = Command::new(format!(
+                "mpv{}",
+                if cfg!(target_os = "windows") {
+                    ".exe"
+                } else {
+                    ""
+                }
+            ));
+
+            command
+                .arg(mirror)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok()
+        });
+
+        if !success {
+            Notification::new()
+                .summary("Ani-link")
+                .body("No se ha podido abrir mpv")
+                .show()
+                .unwrap();
+        }
+    }
+
+    fn download_episode(&mut self) {
+        let episode = self.episodes[self.selected];
+        let mirrors = match self.config.scraper {
+            ScraperImpl::AnimeAv1Scraper => {
+                AnimeAv1Scraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
+                    .expect("Couldn't get mirrors")
+            }
+            ScraperImpl::AnimeFlvScraper => {
+                AnimeFlvScraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
+                    .expect("Couldn't get mirrors")
+            }
+        };
+
+        let viewable = mirrors
+            .iter()
+            .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+            .collect_vec();
+
+        let success = viewable.iter().all(|mirror| {
+            Notification::new()
+                .summary("Ani-link")
+                .body(
+                    format!(
+                        r#"Descargando episodio {episode} de {}, por favor, espera."#,
+                        self.anime.names[0]
+                    )
+                    .as_str(),
+                )
+                .show()
+                .unwrap();
+
+            let mut command = Command::new(format!(
+                "yt-dlp{}",
+                if cfg!(target_os = "windows") {
+                    ".exe"
+                } else {
+                    ""
+                }
+            ));
+
+            let slug = self.anime.names[1].as_str();
+
+            command
+                .arg(mirror)
+                .arg("--no-check-certificates")
+                .arg("--output")
+                .arg(format!(
+                    "{}/ani-link/{slug}/{slug}-{episode}.%(ext)s",
+                    video_dir()
+                        .expect("Video path not found")
+                        .into_os_string()
+                        .into_string()
+                        .expect("Video path could not be converted to string"),
+                ))
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok()
+        });
+
+        if success {
+            Notification::new()
+                .summary("Ani-link")
+                .body(&format!("Episodio {episode} descargado correctamente"))
+                .show()
+                .unwrap();
+        } else {
+            Notification::new()
+                .summary("Ani-link")
+                .body(&format!("No se ha podido descargar el episodio {episode}"))
+                .show()
+                .unwrap();
+        }
+    }
+
+    fn stream_episode(&mut self) {
+        let episode = self.episodes[self.selected];
+        let mirrors = match self.config.scraper {
+            ScraperImpl::AnimeAv1Scraper => {
+                AnimeAv1Scraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
+                    .expect("Couldn't get mirrors")
+            }
+            ScraperImpl::AnimeFlvScraper => {
+                AnimeFlvScraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
+                    .expect("Couldn't get mirrors")
+            }
+        };
+
+        let viewable = mirrors
+            .iter()
+            .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+            .collect_vec();
+
+        let success = viewable.iter().any(|mirror| {
+            let mut command = Command::new(format!(
+                "syncplay{}",
+                if cfg!(target_os = "windows") {
+                    ".exe"
+                } else {
+                    ""
+                }
+            ));
+
+            command
+                .arg(mirror)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok()
+        });
+
+        if !success {
+            Notification::new()
+                .summary("Ani-link")
+                .body("No se ha podido abrir syncplay")
+                .show()
+                .unwrap();
+        }
+    }
+}
