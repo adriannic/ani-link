@@ -1,6 +1,6 @@
 use colors_transform::{Color, Rgb};
 use iced::{
-    Border, Element, Length, Pixels,
+    Border, Element, Length,
     overlay::menu,
     widget::{Button, Container, Space, button, column, container, pick_list, row, text},
 };
@@ -83,29 +83,6 @@ pub fn transparent_button_cond<'a, Message: 'a>(
     };
 
     button(text(string))
-        .style(move |theme: &iced::Theme, status| button::Style {
-            text_color: if selected || matches!(status, button::Status::Hovered) {
-                highlight(theme.palette().text, 20.0)
-            } else {
-                theme.palette().text
-            },
-            ..Default::default()
-        })
-        .padding(0)
-}
-
-pub fn transparent_button_sized<'a, Message: 'a>(
-    content: &str,
-    selected: bool,
-    size: impl Into<Pixels>,
-) -> Button<'a, Message> {
-    let string = if selected {
-        format!("> {content}")
-    } else {
-        format!("  {content}")
-    };
-
-    button(text(string).size(size))
         .style(move |theme: &iced::Theme, status| button::Style {
             text_color: if selected || matches!(status, button::Status::Hovered) {
                 highlight(theme.palette().text, 20.0)

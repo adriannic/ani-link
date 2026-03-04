@@ -2,12 +2,7 @@ use iced::{Font, Settings, Task};
 use reqwest::blocking::Client;
 
 use crate::{
-    config::Config,
-    list_query_state::ListQueryState,
-    main_menu_page::{self, MainMenuPage},
-    options_page,
-    page::{AppUpdate, Page},
-    search_page,
+    config::Config, episodes_page, list_query_state::ListQueryState, main_menu_page::{self, MainMenuPage}, options_page, page::{AppUpdate, Page}, search_page
 };
 
 #[derive(Debug, Clone)]
@@ -15,6 +10,7 @@ pub enum Message {
     MainMenu(main_menu_page::Message),
     Options(options_page::Message),
     Search(search_page::Message),
+    Episodes(episodes_page::Message),
 }
 
 pub struct App {
@@ -57,7 +53,6 @@ impl App {
             .transparent(true)
             .antialiasing(true)
             .settings(Settings {
-                default_text_size: 14.into(),
                 ..Default::default()
             })
             .font(include_bytes!("../assets/font.ttf"))

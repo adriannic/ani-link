@@ -14,11 +14,11 @@ pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
                 0x04 as f32 / 255.0,
                 0x0D as f32 / 255.0,
                 0.75,
-            ),
-            text: color!(0xD9CBD2),
-            primary: color!(0xA49029),
-            success: color!(0x00FF00),
-            danger: color!(0xFF0000),
+            ), // #03040D
+            text: color!(0xD9CBD2),    // #D9CBD2
+            primary: color!(0xA49029), // #A49029
+            success: color!(0x00FF00), // #00FF00
+            danger: color!(0xFF0000),  // #FF0000
         },
     )
 });

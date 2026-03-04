@@ -32,7 +32,7 @@ use crate::options_page;
 use crate::options_page::OptionsPage;
 use crate::page::AppUpdate;
 use crate::presets::help_text;
-use crate::presets::transparent_button_sized;
+use crate::presets::transparent_button;
 use crate::search_page::SEARCH_BAR_ID;
 use crate::search_page::SearchPage;
 use crate::{list_query_state::ListQueryState, page::Page, presets::square_box};
@@ -109,23 +109,19 @@ impl Page for MainMenuPage {
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                transparent_button_sized("Buscar", matches!(self.selection, Selection::Search), 24)
+                transparent_button("Buscar", matches!(self.selection, Selection::Search))
                     .on_press(app::Message::MainMenu(Message::Select(Selection::Search)))
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                transparent_button_sized(
-                    "Opciones",
-                    matches!(self.selection, Selection::Options),
-                    24
-                )
-                .on_press(app::Message::MainMenu(Message::Select(Selection::Options)))
+                transparent_button("Opciones", matches!(self.selection, Selection::Options),)
+                    .on_press(app::Message::MainMenu(Message::Select(Selection::Options)))
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                transparent_button_sized("Salir", matches!(self.selection, Selection::Exit), 24)
+                transparent_button("Salir", matches!(self.selection, Selection::Exit))
                     .on_press(app::Message::MainMenu(Message::Select(Selection::Exit)))
             )
             .align_x(Horizontal::Center)

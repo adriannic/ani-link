@@ -1,4 +1,5 @@
 use dirs::cache_dir;
+use iced::advanced::image::Bytes;
 use reqwest::blocking::Client;
 use std::{
     fs::{create_dir, read, write},
@@ -11,8 +12,6 @@ use crate::scraper::ScraperImpl;
 pub struct CachedImage {
     client: Client,
     uri: String,
-    scraper: ScraperImpl,
-    filename: String,
     path: PathBuf,
     bytes: Vec<u8>,
 }
@@ -36,37 +35,38 @@ impl CachedImage {
         CachedImage {
             client,
             uri,
-            scraper,
-            filename,
             path,
             bytes: vec![],
         }
     }
+}
 
-    pub fn to_bytes(mut self) -> Vec<u8> {
-        if !self.bytes.is_empty() {
-            return self.bytes;
+impl From<CachedImage> for Bytes {
+    fn from(value: CachedImage) -> Self {
+        let mut value = value;
+        if !value.bytes.is_empty() {
+            return value.bytes.into();
         }
 
-        if self.path.is_file() {
-            self.bytes = read(&self.path).expect("Image file not found")
+        if value.path.is_file() {
+            value.bytes = read(&value.path).expect("Image file not found")
         }
 
-        if !self.bytes.is_empty() {
-            return self.bytes;
+        if !value.bytes.is_empty() {
+            return value.bytes.into();
         }
 
-        self.bytes = self
+        value.bytes = value
             .client
-            .get(&self.uri)
+            .get(&value.uri)
             .send()
             .expect("Error sending request for image")
             .bytes()
             .expect("Error converting image data to bytes")
             .into();
 
-        write(&self.path, &self.bytes).expect("Couldn't create image cache file");
+        write(&value.path, &value.bytes).expect("Couldn't create image cache file");
 
-        self.bytes
+        value.bytes.into()
     }
 }

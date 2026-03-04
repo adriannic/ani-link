@@ -1,5 +1,6 @@
 use iced::{
     Border, Element, Event, Font, Length, Padding, Task, Theme,
+    advanced::image::Bytes,
     alignment::{Horizontal, Vertical},
     event::{self, Status},
     keyboard::{
@@ -22,7 +23,7 @@ use crate::{
     app,
     cached_image::CachedImage,
     config::Config,
-    episodes_page::{EpisodesPage, PopupState},
+    episodes_page::EpisodesPage,
     list_query_state::ListQueryState,
     main_menu_page::{MainMenuPage, Selection},
     page::{AppUpdate, Page},
@@ -43,12 +44,6 @@ pub enum Message {
     Click(usize),
     Submit,
     KeyPressed(Key),
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub enum SearchState {
-    Searching,
-    Choosing,
 }
 
 pub struct SearchPage {
@@ -143,7 +138,7 @@ impl Page for SearchPage {
                         Scrollable::new(
                             column![
                                 column![
-                                    image(image::Handle::from_bytes(cached_image.to_bytes()))
+                                    image(image::Handle::from_bytes(Bytes::from(cached_image)))
                                         .width(Length::Fill),
                                     text(&anime.names[0])
                                         .font(Font {
@@ -153,7 +148,6 @@ impl Page for SearchPage {
                                         .style(|theme: &iced::Theme| text::Style {
                                             color: Some(theme.palette().primary)
                                         })
-                                        .size(18)
                                         .width(Length::Fill)
                                         .align_x(Horizontal::Center)
                                         .align_y(Vertical::Bottom)
@@ -192,21 +186,25 @@ impl Page for SearchPage {
                     }
 
                     let anime = &self.filtered_list[self.selected];
+                    let episodes = match self.config.scraper {
+                        ScraperImpl::AnimeAv1Scraper => {
+                            AnimeAv1Scraper::try_get_episodes(&self.client, &anime.names[1])
+                                .expect("Couldn't get episodes")
+                        }
+                        ScraperImpl::AnimeFlvScraper => {
+                            AnimeFlvScraper::try_get_episodes(&self.client, &anime.names[1])
+                                .expect("Couldn't get episodes")
+                        }
+                    };
+
                     AppUpdate::Page(Box::new(EpisodesPage {
-                        popup_state: PopupState::None,
-                        state: 0,
+                        config: mem::take(&mut self.config),
+                        client: mem::take(&mut self.client),
+                        theme: mem::take(&mut self.theme),
+                        selected: 0,
                         anime_list: mem::take(&mut self.anime_list),
                         anime: anime.clone(),
-                        episodes: match self.config.scraper {
-                            ScraperImpl::AnimeAv1Scraper => {
-                                AnimeAv1Scraper::try_get_episodes(&self.client, &anime.names[0])
-                                    .expect("Couldn't get episodes")
-                            }
-                            ScraperImpl::AnimeFlvScraper => {
-                                AnimeFlvScraper::try_get_episodes(&self.client, &anime.names[0])
-                                    .expect("Couldn't get episodes")
-                            }
-                        },
+                        episodes,
                     }))
                 }
                 Message::KeyPressed(key) => match key.as_ref() {
@@ -228,21 +226,25 @@ impl Page for SearchPage {
                     | Key::Named(ArrowRight)
                     | Key::Named(iced::keyboard::key::Named::Enter) => {
                         let anime = &self.filtered_list[self.selected];
+                        let episodes = match self.config.scraper {
+                            ScraperImpl::AnimeAv1Scraper => {
+                                AnimeAv1Scraper::try_get_episodes(&self.client, &anime.names[1])
+                                    .expect("Couldn't get episodes")
+                            }
+                            ScraperImpl::AnimeFlvScraper => {
+                                AnimeFlvScraper::try_get_episodes(&self.client, &anime.names[1])
+                                    .expect("Couldn't get episodes")
+                            }
+                        };
+
                         AppUpdate::Page(Box::new(EpisodesPage {
-                            popup_state: PopupState::None,
-                            state: 0,
+                            config: mem::take(&mut self.config),
+                            client: mem::take(&mut self.client),
+                            theme: mem::take(&mut self.theme),
+                            selected: 0,
                             anime_list: mem::take(&mut self.anime_list),
                             anime: anime.clone(),
-                            episodes: match self.config.scraper {
-                                ScraperImpl::AnimeAv1Scraper => {
-                                    AnimeAv1Scraper::try_get_episodes(&self.client, &anime.names[0])
-                                        .expect("Couldn't get episodes")
-                                }
-                                ScraperImpl::AnimeFlvScraper => {
-                                    AnimeFlvScraper::try_get_episodes(&self.client, &anime.names[0])
-                                        .expect("Couldn't get episodes")
-                                }
-                            },
+                            episodes,
                         }))
                     }
                     Key::Character("f") | Key::Character("/") => {
