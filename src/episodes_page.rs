@@ -8,10 +8,7 @@ use crate::{
     config::Config,
     page::{AppUpdate, Page},
     presets::{help_text, square_box, transparent_button_cond},
-    scraper::{
-        Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
-        animeflvscraper::AnimeFlvScraper,
-    },
+    scraper::anime::Anime,
     search_page::SearchPage,
 };
 use dirs::video_dir;
@@ -32,14 +29,14 @@ use iced::{
 };
 use itertools::Itertools;
 use notify_rust::Notification;
-use reqwest::blocking::Client;
+use reqwest::Client;
+use tokio::runtime::Handle;
 
 const EPISODES_SCROLLABLE_ID: &str = "episodes_scrollable";
 const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Select(usize),
     Click(usize),
     KeyPressed(Key),
 }
@@ -139,7 +136,7 @@ impl Page for EpisodesPage {
                         }
                         AppUpdate::None
                     }
-                    Key::Character("l") | Key::Named(ArrowRight) | Key::Named(Enter) => {
+                    Key::Character("l") | Key::Named(ArrowRight | Enter) => {
                         self.play_episode();
                         AppUpdate::None
                     }
@@ -151,24 +148,22 @@ impl Page for EpisodesPage {
                         self.stream_episode();
                         AppUpdate::None
                     }
-                    Key::Character("q")
-                    | Key::Named(Escape)
-                    | Key::Character("h")
-                    | Key::Named(ArrowLeft) => AppUpdate::Page(Box::new(SearchPage {
-                        config: mem::take(&mut self.config),
-                        client: mem::take(&mut self.client),
-                        theme: self.theme.clone(),
-                        anime_list: self.anime_list.clone(),
-                        query: String::new(),
-                        selected: 0,
-                        filtered_list: mem::take(&mut self.anime_list),
-                    })),
+                    Key::Character("q" | "h") | Key::Named(ArrowLeft | Escape) => {
+                        AppUpdate::Page(Box::new(SearchPage {
+                            config: mem::take(&mut self.config),
+                            client: mem::take(&mut self.client),
+                            theme: self.theme.clone(),
+                            anime_list: self.anime_list.clone(),
+                            query: String::new(),
+                            selected: 0,
+                            filtered_list: mem::take(&mut self.anime_list),
+                        }))
+                    }
                     _ => AppUpdate::None,
                 },
-                _ => AppUpdate::None,
             }
         } else {
-            panic!("search menu event handler called for non search menu event")
+            AppUpdate::None
         }
     }
 
@@ -194,6 +189,7 @@ impl EpisodesPage {
             return Task::none();
         }
 
+        #[allow(clippy::cast_precision_loss)]
         let offset = self.selected as f32 / list_len as f32;
 
         scrollable::snap_to(
@@ -207,16 +203,14 @@ impl EpisodesPage {
 
     fn play_episode(&mut self) {
         let episode = self.episodes[self.selected];
-        let mirrors = match self.config.scraper {
-            ScraperImpl::AnimeAv1Scraper => {
-                AnimeAv1Scraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
-                    .expect("Couldn't get mirrors")
-            }
-            ScraperImpl::AnimeFlvScraper => {
-                AnimeFlvScraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
-                    .expect("Couldn't get mirrors")
-            }
-        };
+
+        let mirrors = Handle::current()
+            .block_on(self.config.scraper.try_get_mirrors(
+                &self.client,
+                &self.anime.names[1],
+                episode,
+            ))
+            .expect("Couldn't get mirrors");
 
         let viewable = mirrors
             .iter()
@@ -258,16 +252,13 @@ impl EpisodesPage {
 
     fn download_episode(&mut self) {
         let episode = self.episodes[self.selected];
-        let mirrors = match self.config.scraper {
-            ScraperImpl::AnimeAv1Scraper => {
-                AnimeAv1Scraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
-                    .expect("Couldn't get mirrors")
-            }
-            ScraperImpl::AnimeFlvScraper => {
-                AnimeFlvScraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
-                    .expect("Couldn't get mirrors")
-            }
-        };
+        let mirrors = Handle::current()
+            .block_on(self.config.scraper.try_get_mirrors(
+                &self.client,
+                &self.anime.names[1],
+                episode,
+            ))
+            .expect("Couldn't get mirrors");
 
         let viewable = mirrors
             .iter()
@@ -279,7 +270,7 @@ impl EpisodesPage {
                 .summary("Ani-link")
                 .body(
                     format!(
-                        r#"Descargando episodio {episode} de {}, por favor, espera."#,
+                        r"Descargando episodio {episode} de {}, por favor, espera.",
                         self.anime.names[0]
                     )
                     .as_str(),
@@ -333,16 +324,13 @@ impl EpisodesPage {
 
     fn stream_episode(&mut self) {
         let episode = self.episodes[self.selected];
-        let mirrors = match self.config.scraper {
-            ScraperImpl::AnimeAv1Scraper => {
-                AnimeAv1Scraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
-                    .expect("Couldn't get mirrors")
-            }
-            ScraperImpl::AnimeFlvScraper => {
-                AnimeFlvScraper::try_get_mirrors(&self.client, &self.anime.names[1], episode)
-                    .expect("Couldn't get mirrors")
-            }
-        };
+        let mirrors = Handle::current()
+            .block_on(self.config.scraper.try_get_mirrors(
+                &self.client,
+                &self.anime.names[1],
+                episode,
+            ))
+            .expect("Couldn't get mirrors");
 
         let viewable = mirrors
             .iter()

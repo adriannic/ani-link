@@ -10,15 +10,15 @@ pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
         "custom".into(),
         Palette {
             background: Color::from_rgba(
-                0x03 as f32 / 255.0,
-                0x04 as f32 / 255.0,
-                0x0D as f32 / 255.0,
+                f32::from(0x03_u16) / 255.0,
+                f32::from(0x04_u16) / 255.0,
+                f32::from(0x0D_u16) / 255.0,
                 0.75,
             ), // #03040D
-            text: color!(0xD9CBD2),    // #D9CBD2
-            primary: color!(0xA49029), // #A49029
-            success: color!(0x00FF00), // #00FF00
-            danger: color!(0xFF0000),  // #FF0000
+            text: color!(0xD9_CBD2),    // #D9CBD2
+            primary: color!(0xA4_9029), // #A49029
+            success: color!(0x00_FF00), // #00FF00
+            danger: color!(0xFF_0000),  // #FF0000
         },
     )
 });
@@ -156,7 +156,7 @@ impl FromStr for Themes {
 }
 
 impl Themes {
-    pub fn next(&self) -> Self {
+    pub fn next(self) -> Self {
         match self {
             Self::AniLink => Self::Light,
             Self::Light => Self::Dark,
@@ -184,7 +184,7 @@ impl Themes {
         }
     }
 
-    pub fn prev(&self) -> Self {
+    pub fn prev(self) -> Self {
         match self {
             Self::AniLink => Self::Ferra,
             Self::Light => Self::AniLink,

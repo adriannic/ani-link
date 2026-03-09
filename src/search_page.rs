@@ -6,7 +6,7 @@ use iced::{
     keyboard::{
         Event::KeyPressed,
         Key,
-        key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Escape},
+        key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
     widget::{
         self, Column, Scrollable, column, container, image, row,
@@ -15,9 +15,13 @@ use iced::{
     },
 };
 use rayon::prelude::*;
-use reqwest::blocking::Client;
+use reqwest::Client;
 use rust_fuzzy_search::fuzzy_compare;
-use std::mem;
+use std::{
+    mem,
+    sync::{Arc, atomic::AtomicUsize},
+};
+use tokio::runtime::Handle;
 
 use crate::{
     app,
@@ -28,10 +32,7 @@ use crate::{
     main_menu_page::{MainMenuPage, Selection},
     page::{AppUpdate, Page},
     presets::{help_text, highlight, square_box, transparent_button_cond},
-    scraper::{
-        Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
-        animeflvscraper::AnimeFlvScraper,
-    },
+    scraper::anime::Anime,
 };
 
 pub const SEARCH_BAR_ID: &str = "search_bar";
@@ -40,7 +41,6 @@ pub const SEARCH_SCROLLABLE_ID: &str = "search_scrollable";
 #[derive(Debug, Clone)]
 pub enum Message {
     Update(String),
-    Select(usize),
     Click(usize),
     Submit,
     KeyPressed(Key),
@@ -57,15 +57,11 @@ pub struct SearchPage {
 }
 
 impl Page for SearchPage {
+    #[allow(clippy::too_many_lines)]
     fn view(&self) -> iced::Element<'_, crate::app::Message> {
         let selected = self.selected;
         let anime = &self.filtered_list[self.selected];
-        let cached_image = CachedImage::new(
-            self.client.clone(),
-            anime.image_url.clone(),
-            self.config.scraper,
-            anime.image_filename.clone(),
-        );
+        let cached_image = CachedImage::new(self.client.clone(), anime.image_url.clone());
         column![
             square_box(
                 column![
@@ -186,16 +182,14 @@ impl Page for SearchPage {
                     }
 
                     let anime = &self.filtered_list[self.selected];
-                    let episodes = match self.config.scraper {
-                        ScraperImpl::AnimeAv1Scraper => {
-                            AnimeAv1Scraper::try_get_episodes(&self.client, &anime.names[1])
-                                .expect("Couldn't get episodes")
-                        }
-                        ScraperImpl::AnimeFlvScraper => {
-                            AnimeFlvScraper::try_get_episodes(&self.client, &anime.names[1])
-                                .expect("Couldn't get episodes")
-                        }
-                    };
+
+                    let episodes = Handle::current()
+                        .block_on(
+                            self.config
+                                .scraper
+                                .try_get_episodes(&self.client, &anime.names[1]),
+                        )
+                        .expect("Couldn't get episodes");
 
                     AppUpdate::Page(Box::new(EpisodesPage {
                         config: mem::take(&mut self.config),
@@ -222,20 +216,15 @@ impl Page for SearchPage {
                         }
                         AppUpdate::None
                     }
-                    Key::Character("l")
-                    | Key::Named(ArrowRight)
-                    | Key::Named(iced::keyboard::key::Named::Enter) => {
+                    Key::Character("l") | Key::Named(ArrowRight | Enter) => {
                         let anime = &self.filtered_list[self.selected];
-                        let episodes = match self.config.scraper {
-                            ScraperImpl::AnimeAv1Scraper => {
-                                AnimeAv1Scraper::try_get_episodes(&self.client, &anime.names[1])
-                                    .expect("Couldn't get episodes")
-                            }
-                            ScraperImpl::AnimeFlvScraper => {
-                                AnimeFlvScraper::try_get_episodes(&self.client, &anime.names[1])
-                                    .expect("Couldn't get episodes")
-                            }
-                        };
+                        let episodes = Handle::current()
+                            .block_on(
+                                self.config
+                                    .scraper
+                                    .try_get_episodes(&self.client, &anime.names[1]),
+                            )
+                            .expect("Couldn't get episodes");
 
                         AppUpdate::Page(Box::new(EpisodesPage {
                             config: mem::take(&mut self.config),
@@ -247,29 +236,31 @@ impl Page for SearchPage {
                             episodes,
                         }))
                     }
-                    Key::Character("f") | Key::Character("/") => {
+                    Key::Character("f" | "/") => {
                         self.selected = 0;
                         AppUpdate::Task(Task::batch([
                             text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
                             self.scroll_to_index(),
                         ]))
                     }
-                    Key::Character("q")
-                    | Key::Named(Escape)
-                    | Key::Character("h")
-                    | Key::Named(ArrowLeft) => AppUpdate::Page(Box::new(MainMenuPage {
-                        config: mem::take(&mut self.config),
-                        client: mem::take(&mut self.client),
-                        theme: self.theme.clone(),
-                        selection: Selection::Search,
-                        anime_list: ListQueryState::Obtained(mem::take(&mut self.anime_list)),
-                    })),
+                    Key::Character("q" | "h") | Key::Named(Escape | ArrowLeft) => {
+                        AppUpdate::Page(Box::new(MainMenuPage {
+                            config: mem::take(&mut self.config),
+                            client: mem::take(&mut self.client),
+                            theme: self.theme.clone(),
+                            selection: Selection::Search,
+                            anime_list: ListQueryState::Obtained(
+                                mem::take(&mut self.anime_list),
+                                Arc::new(AtomicUsize::new(self.config.scraper.pages())),
+                            ),
+                            waiting: false,
+                        }))
+                    }
                     _ => AppUpdate::None,
                 },
-                _ => AppUpdate::None,
             }
         } else {
-            panic!("search menu event handler called for non search menu event")
+            AppUpdate::None
         }
     }
 
@@ -295,6 +286,7 @@ impl SearchPage {
             return Task::none();
         }
 
+        #[allow(clippy::cast_precision_loss)]
         let offset = self.selected as f32 / list_len as f32;
 
         scrollable::snap_to(
@@ -334,6 +326,6 @@ impl SearchPage {
                 .expect("Error comparing f32 in sort_fuzzy")
         });
 
-        self.filtered_list = result.into_iter().map(|(anime, _)| anime).collect()
+        self.filtered_list = result.into_iter().map(|(anime, _)| anime).collect();
     }
 }

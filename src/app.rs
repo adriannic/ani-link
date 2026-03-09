@@ -1,12 +1,19 @@
 use iced::{Font, Settings, Task};
-use reqwest::blocking::Client;
+use reqwest::Client;
 
 use crate::{
-    config::Config, episodes_page, list_query_state::ListQueryState, main_menu_page::{self, MainMenuPage}, options_page, page::{AppUpdate, Page}, search_page
+    config::Config,
+    episodes_page,
+    list_query_state::ListQueryState,
+    main_menu_page::{self, MainMenuPage},
+    options_page,
+    page::{AppUpdate, Page},
+    search_page,
 };
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    UpdateProgress,
     MainMenu(main_menu_page::Message),
     Options(options_page::Message),
     Search(search_page::Message),
@@ -26,7 +33,10 @@ impl Default for App {
             )
             .cookie_store(true)
             .build()
-            .expect("Couldn't build client");
+            .unwrap_or_else(|err| {
+                eprintln!("{err}");
+                Client::default()
+            });
 
         let scraper = config.scraper;
         let theme = config.theme.into();
@@ -40,12 +50,14 @@ impl Default for App {
                 theme,
                 selection: main_menu_page::Selection::Search,
                 anime_list,
+                waiting: false,
             }),
         }
     }
 }
 
 impl App {
+    #[allow(clippy::missing_errors_doc)]
     pub fn run() -> iced::Result {
         iced::application("Ani-Link", App::update, App::view)
             .theme(|app| app.page.theme())

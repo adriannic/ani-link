@@ -11,7 +11,7 @@ use iced::{
     },
     widget::{Space, column, container, row, text},
 };
-use reqwest::blocking::Client;
+use reqwest::Client;
 use strum_macros::EnumIter;
 
 use crate::{
@@ -40,17 +40,15 @@ pub enum Options {
 }
 
 impl Options {
-    pub fn next(&self) -> Self {
+    pub fn next(self) -> Self {
         match self {
-            Self::Scraper => Self::Theme,
-            Self::Theme => Self::Theme,
+            Self::Scraper | Self::Theme => Self::Theme,
         }
     }
 
-    pub fn prev(&self) -> Self {
+    pub fn prev(self) -> Self {
         match self {
-            Self::Scraper => Self::Scraper,
-            Self::Theme => Self::Scraper,
+            Self::Scraper | Self::Theme => Self::Scraper,
         }
     }
 }
@@ -170,20 +168,21 @@ impl Page for OptionsPage {
                         }
                     },
                     Key::Named(Enter) => {
+                        let anime_list = if self.config.scraper == self.old_config.scraper {
+                            mem::take(&mut self.anime_list)
+                        } else {
+                            ListQueryState::spawn(self.config.scraper, mem::take(&mut self.client))
+                        };
+
                         self.config.save().expect("Couldn't save config");
+
                         AppUpdate::Page(Box::new(MainMenuPage {
                             config: mem::take(&mut self.config),
                             client: self.client.clone(),
                             theme: mem::take(&mut self.theme),
                             selection: main_menu_page::Selection::Options,
-                            anime_list: if self.config.scraper == self.old_config.scraper {
-                                mem::take(&mut self.anime_list)
-                            } else {
-                                ListQueryState::spawn(
-                                    self.config.scraper,
-                                    mem::take(&mut self.client),
-                                )
-                            },
+                            anime_list,
+                            waiting: false,
                         }))
                     }
                     Key::Character("q") | Key::Named(Escape) => {
@@ -194,13 +193,14 @@ impl Page for OptionsPage {
                             theme: mem::take(&mut self.theme),
                             selection: main_menu_page::Selection::Options,
                             anime_list: mem::take(&mut self.anime_list),
+                            waiting: false,
                         }))
                     }
                     _ => AppUpdate::None,
                 },
             }
         } else {
-            panic!("options menu event handler called for non options menu event")
+            AppUpdate::None
         }
     }
 

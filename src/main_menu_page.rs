@@ -1,41 +1,29 @@
-use std::fmt;
-use std::mem;
-use std::process::exit;
+use std::{fmt, mem, process::exit, sync::atomic::Ordering};
 
-use iced::Event;
-use iced::Font;
-use iced::Length;
-use iced::Theme;
-use iced::alignment::Horizontal;
-use iced::event;
-use iced::event::Status;
-use iced::keyboard::Event::KeyPressed;
-use iced::keyboard::Key;
-use iced::keyboard::key::Named::ArrowDown;
-use iced::keyboard::key::Named::ArrowLeft;
-use iced::keyboard::key::Named::ArrowRight;
-use iced::keyboard::key::Named::ArrowUp;
-use iced::keyboard::key::Named::Enter;
-use iced::keyboard::key::Named::Escape;
-use iced::widget::Space;
-use iced::widget::column;
-use iced::widget::container;
-use iced::widget::row;
-use iced::widget::text;
-use iced::widget::text_input;
-use reqwest::blocking::Client;
+use iced::{
+    Event, Font, Length, Subscription, Theme,
+    alignment::Horizontal,
+    event::{self, Status},
+    keyboard::{
+        Event::KeyPressed,
+        Key,
+        key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
+    },
+    time::{self, Duration},
+    widget::{Space, column, container, row, text, text_input},
+};
+use reqwest::Client;
 use strum_macros::EnumIter;
 
-use crate::app;
-use crate::config::Config;
-use crate::options_page;
-use crate::options_page::OptionsPage;
-use crate::page::AppUpdate;
-use crate::presets::help_text;
-use crate::presets::transparent_button;
-use crate::search_page::SEARCH_BAR_ID;
-use crate::search_page::SearchPage;
-use crate::{list_query_state::ListQueryState, page::Page, presets::square_box};
+use crate::{
+    app,
+    config::Config,
+    list_query_state::ListQueryState,
+    options_page::{self, OptionsPage},
+    page::{AppUpdate, Page},
+    presets::{help_text, square_box, transparent_button},
+    search_page::{SEARCH_BAR_ID, SearchPage},
+};
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -51,18 +39,16 @@ pub enum Selection {
 }
 
 impl Selection {
-    pub fn next(&self) -> Self {
+    pub fn next(self) -> Self {
         match self {
             Self::Search => Self::Options,
-            Self::Options => Self::Exit,
-            Self::Exit => Self::Exit,
+            Self::Options | Self::Exit => Self::Exit,
         }
     }
 
-    pub fn prev(&self) -> Self {
+    pub fn prev(self) -> Self {
         match self {
-            Self::Search => Self::Search,
-            Self::Options => Self::Search,
+            Self::Search | Self::Options => Self::Search,
             Self::Exit => Self::Options,
         }
     }
@@ -88,10 +74,20 @@ pub struct MainMenuPage {
     pub theme: Theme,
     pub selection: Selection,
     pub anime_list: ListQueryState,
+    pub waiting: bool,
 }
 
 impl Page for MainMenuPage {
     fn view(&self) -> iced::Element<'_, app::Message> {
+        let progress = match &self.anime_list {
+            ListQueryState::Obtaining(_, progress) | ListQueryState::Obtained(_, progress) => {
+                progress.clone()
+            }
+        }
+        .load(Ordering::SeqCst);
+
+        let total = self.config.scraper.pages();
+
         square_box(column![
             Space::with_height(Length::Fill),
             container(
@@ -109,8 +105,15 @@ impl Page for MainMenuPage {
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                transparent_button("Buscar", matches!(self.selection, Selection::Search))
-                    .on_press(app::Message::MainMenu(Message::Select(Selection::Search)))
+                if progress == total {
+                    transparent_button("Buscar", matches!(self.selection, Selection::Search))
+                } else {
+                    transparent_button(
+                        &format!("Buscar ({}%)", 100 * progress / total),
+                        matches!(self.selection, Selection::Search),
+                    )
+                }
+                .on_press(app::Message::MainMenu(Message::Select(Selection::Search)))
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
@@ -148,6 +151,16 @@ impl Page for MainMenuPage {
         let mut change_selection = |selection| -> AppUpdate {
             match selection {
                 Selection::Search => {
+                    let progress = match &self.anime_list {
+                        ListQueryState::Obtaining(_, progress)
+                        | ListQueryState::Obtained(_, progress) => progress.clone(),
+                    };
+
+                    if progress.load(Ordering::SeqCst) != self.config.scraper.pages() {
+                        self.waiting = true;
+                        return AppUpdate::None;
+                    }
+
                     let anime_list = mem::take(&mut self.anime_list);
 
                     let anime_list = match anime_list {
@@ -155,7 +168,7 @@ impl Page for MainMenuPage {
                         ListQueryState::Obtained(..) => anime_list,
                     };
 
-                    let ListQueryState::Obtained(anime_list) = anime_list else {
+                    let ListQueryState::Obtained(anime_list, _) = anime_list else {
                         panic!("Should not happen");
                     };
 
@@ -185,7 +198,6 @@ impl Page for MainMenuPage {
                 Selection::Exit => exit(0),
             }
         };
-
         if let app::Message::MainMenu(message) = message {
             match message {
                 Message::Select(selection) => change_selection(selection),
@@ -198,12 +210,48 @@ impl Page for MainMenuPage {
                         self.selection = self.selection.prev();
                         AppUpdate::None
                     }
-                    Key::Character("l") | Key::Named(Enter) | Key::Named(ArrowRight) => {
+                    Key::Character("l") | Key::Named(Enter | ArrowRight) => {
                         change_selection(self.selection)
                     }
-                    Key::Character("h") | Key::Named(Escape) | Key::Named(ArrowLeft) => exit(0),
+                    Key::Character("h") | Key::Named(Escape | ArrowLeft) => exit(0),
                     _ => AppUpdate::None,
                 },
+            }
+        } else if matches!(message, app::Message::UpdateProgress) {
+            let progress = match &self.anime_list {
+                ListQueryState::Obtaining(_, progress) | ListQueryState::Obtained(_, progress) => {
+                    progress.clone()
+                }
+            };
+
+            if self.waiting && progress.load(Ordering::SeqCst) == self.config.scraper.pages() {
+                let anime_list = mem::take(&mut self.anime_list);
+
+                let anime_list = match anime_list {
+                    ListQueryState::Obtaining(..) => anime_list.get(),
+                    ListQueryState::Obtained(..) => anime_list,
+                };
+
+                let ListQueryState::Obtained(anime_list, _) = anime_list else {
+                    panic!("Should not happen");
+                };
+
+                let filtered_list = anime_list.clone();
+
+                AppUpdate::Both((
+                    Box::new(SearchPage {
+                        config: mem::take(&mut self.config),
+                        client: mem::take(&mut self.client),
+                        theme: mem::take(&mut self.theme),
+                        anime_list,
+                        query: String::new(),
+                        selected: 0,
+                        filtered_list,
+                    }),
+                    text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
+                ))
+            } else {
+                AppUpdate::None
             }
         } else {
             panic!("main menu event handler called for non main menu event")
@@ -211,12 +259,20 @@ impl Page for MainMenuPage {
     }
 
     fn subscription(&self) -> iced::Subscription<app::Message> {
-        event::listen_with(move |event, status, _| match (event, status) {
-            (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
-                Some(app::Message::MainMenu(Message::KeyPressed(key)))
-            }
-            _ => None,
-        })
+        let mut subscriptions =
+            vec![time::every(Duration::from_millis(100)).map(|_| app::Message::UpdateProgress)];
+
+        if !self.waiting {
+            subscriptions.push(event::listen_with(move |event, status, _| {
+                match (event, status) {
+                    (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
+                        Some(app::Message::MainMenu(Message::KeyPressed(key)))
+                    }
+                    _ => None,
+                }
+            }));
+        }
+        Subscription::batch(subscriptions)
     }
 
     fn theme(&self) -> iced::Theme {

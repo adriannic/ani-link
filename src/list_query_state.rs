@@ -1,40 +1,44 @@
-use std::thread::{self, JoinHandle};
+use std::sync::{Arc, atomic::AtomicUsize};
 
-use reqwest::blocking::Client;
+use reqwest::Client;
+use tokio::{runtime::Handle, task::JoinHandle};
 
-use crate::scraper::{
-    Scraper, ScraperImpl, anime::Anime, animeav1scraper::AnimeAv1Scraper,
-    animeflvscraper::AnimeFlvScraper,
-};
+use crate::scraper::{ScraperImpl, anime::Anime};
 
 pub enum ListQueryState {
-    Obtaining(JoinHandle<Vec<Anime>>),
-    Obtained(Vec<Anime>),
+    Obtaining(JoinHandle<Vec<Anime>>, Arc<AtomicUsize>),
+    Obtained(Vec<Anime>, Arc<AtomicUsize>),
 }
 
 impl Default for ListQueryState {
     fn default() -> Self {
-        Self::Obtained(vec![])
+        Self::Obtained(vec![], Arc::new(AtomicUsize::new(0)))
     }
 }
 
 impl ListQueryState {
     pub fn spawn(scraper: ScraperImpl, client: Client) -> Self {
-        ListQueryState::Obtaining(thread::spawn(move || match scraper {
-            ScraperImpl::AnimeAv1Scraper => {
-                AnimeAv1Scraper::try_search(&client).expect("Couldn't retrieve the list of animes")
-            }
-            ScraperImpl::AnimeFlvScraper => {
-                AnimeFlvScraper::try_search(&client).expect("Couldn't retrieve the list of animes")
-            }
-        }))
+        let progress = Arc::new(AtomicUsize::new(0));
+        let progress2 = progress.clone();
+        ListQueryState::Obtaining(
+            tokio::spawn(async move {
+                scraper
+                    .try_search(&client, progress)
+                    .await
+                    .expect("Couldn't retrieve the list of animes")
+            }),
+            progress2,
+        )
     }
 
     pub fn get(self) -> Self {
         match self {
-            Self::Obtaining(handle) => {
-                Self::Obtained(handle.join().expect("Thread couldn't be joined"))
-            }
+            Self::Obtaining(handle, progress) => Self::Obtained(
+                Handle::current()
+                    .block_on(handle)
+                    .expect("Thread couldn't be joined"),
+                progress,
+            ),
             Self::Obtained(..) => self,
         }
     }

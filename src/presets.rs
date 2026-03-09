@@ -8,8 +8,9 @@ use strum::IntoEnumIterator;
 
 pub fn highlight(color: iced::Color, percentage: f32) -> iced::Color {
     let [r, g, b, a] = color.into_rgba8();
-    let text_color = Rgb::from(r as f32, g as f32, b as f32);
-    let is_text_dark = (text_color.to_hsl().get_lightness() / 100.0).round() as u8 == 0;
+    let text_color = Rgb::from(f32::from(r), f32::from(g), f32::from(b));
+    #[allow(clippy::cast_possible_truncation)]
+    let is_text_dark = (text_color.to_hsl().get_lightness() / 100.0).round() == 0.0;
 
     let (r, g, b) = text_color
         .to_hsl()
@@ -21,7 +22,7 @@ pub fn highlight(color: iced::Color, percentage: f32) -> iced::Color {
         .to_rgb()
         .as_tuple();
 
-    iced::Color::from_rgba(r / 255.0, g / 255.0, b / 255.0, a as f32 / 255.0)
+    iced::Color::from_rgba(r / 255.0, g / 255.0, b / 255.0, f32::from(a) / 255.0)
 }
 
 pub fn square_box<'a, Message: 'a>(

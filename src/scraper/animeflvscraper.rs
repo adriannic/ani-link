@@ -1,29 +1,50 @@
+use iced::futures::{StreamExt, stream};
 use itertools::Itertools;
 use rayon::prelude::*;
 use regex::Regex;
-use reqwest::blocking::Client;
-use std::error::Error;
+use reqwest::Client;
+use std::sync::atomic::Ordering;
+use std::{
+    error::Error,
+    sync::{Arc, atomic::AtomicUsize},
+};
 
 use super::{Scraper, anime::Anime};
 
 pub struct AnimeFlvScraper;
 
+const PAGES: usize = 300;
+
 impl Scraper for AnimeFlvScraper {
-    fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>> {
-        let pages = 300;
+    async fn try_search(
+        client: &Client,
+        progress: Arc<AtomicUsize>,
+    ) -> Result<Vec<Anime>, Box<dyn Error>> {
         let anime_re = Regex::new(
             r#"<article class="li">[\s\S]*?<figure class="i">[\s\S]*?<a href=".\/anime\/(.*?)" title="Ver Anime (.*?) Online Gratis">[\s\S]*?data-src="(.*?)\?[\s\S]*?<\/article>"#,
         )?;
 
-        let urls = (1..=pages)
-            .into_par_iter()
+        let urls = (1..=PAGES)
+            .par_bridge()
             .map(|page| format!("https://vww.animeflv.one/animes?pag={page}"))
             .collect::<Vec<_>>();
 
-        let bodies = urls
-            .par_iter()
-            .map(|url| client.get(url).send().unwrap().text().unwrap())
-            .collect::<String>();
+        let total = urls.len();
+
+        let bodies = stream::iter(urls)
+            .map(|url| {
+                let client = client.clone();
+                let completed = progress.clone();
+                tokio::spawn(async move {
+                    let body = client.get(url).send().await.unwrap().text().await.unwrap();
+                    completed.fetch_add(1, Ordering::SeqCst);
+                    body
+                })
+            })
+            .buffer_unordered(total)
+            .map(|result| result.unwrap())
+            .collect::<String>()
+            .await;
 
         let mut animes = anime_re
             .captures_iter(&bodies)
@@ -36,7 +57,7 @@ impl Scraper for AnimeFlvScraper {
                     .get(4)?
                     .as_str()
                     .replace(r#"\""#, r#"""#)
-                    .replace(r#"\n"#, "\n");
+                    .replace(r"\n", "\n");
                 Some(Anime {
                     names: vec![title, slug.into()],
                     synopsis,
@@ -51,13 +72,15 @@ impl Scraper for AnimeFlvScraper {
         Ok(animes)
     }
 
-    fn try_get_episodes(client: &Client, slug: &str) -> Result<Vec<f64>, Box<dyn Error>> {
+    async fn try_get_episodes(client: &Client, slug: &str) -> Result<Vec<f64>, Box<dyn Error>> {
         let episodes_re = Regex::new(r#"\["(.*?)",[\s\S]*?"0",[\s\S]*?""\]"#)?;
         let anime = client
             .get(format!("https://vww.animeflv.one/anime/{slug}"))
             .send()
+            .await
             .unwrap()
             .text()
+            .await
             .unwrap();
 
         let mut episodes = episodes_re
@@ -72,7 +95,7 @@ impl Scraper for AnimeFlvScraper {
         Ok(episodes)
     }
 
-    fn try_get_mirrors(
+    async fn try_get_mirrors(
         client: &Client,
         slug: &str,
         episode: f64,
@@ -80,11 +103,13 @@ impl Scraper for AnimeFlvScraper {
         let response = client
             .get(format!("https://vww.animeflv.one/ver/{slug}-{episode}"))
             .send()
+            .await
             .unwrap()
             .text()
+            .await
             .unwrap();
 
-        let pattern = Regex::new(r#"(www\.mp4upload.com\\\/.*?)&quot"#)?;
+        let pattern = Regex::new(r"(www\.mp4upload.com\\\/.*?)&quot")?;
 
         let mirrors = pattern
             .captures_iter(&response)
@@ -93,10 +118,14 @@ impl Scraper for AnimeFlvScraper {
                 let [first, second] = found.as_str().split("\\/").collect_vec()[..2] else {
                     panic!("Shouldn't happen")
                 };
-                format!("https://{}/embed-{}.html", first, second)
+                format!("https://{first}/embed-{second}.html")
             })
             .collect_vec();
 
         Ok(mirrors)
+    }
+
+    fn pages() -> usize {
+        PAGES
     }
 }

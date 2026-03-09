@@ -8,7 +8,7 @@ pub enum AppUpdate {
     None,
     Page(Box<dyn Page>),
     Task(Task<Message>),
-    Both((Box<dyn Page>, Task<Message>))
+    Both((Box<dyn Page>, Task<Message>)),
 }
 
 pub trait Page {

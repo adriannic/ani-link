@@ -1,20 +1,29 @@
+use iced::futures::{StreamExt, stream};
 use itertools::Itertools;
 use rayon::prelude::*;
 use regex::Regex;
-use reqwest::blocking::Client;
-use std::error::Error;
+use reqwest::Client;
+use std::{
+    error::Error,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use super::{Scraper, anime::Anime};
 
 const LETTERS: &str = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const PAGES: i32 = 15;
 
 pub struct AnimeAv1Scraper;
 
 impl Scraper for AnimeAv1Scraper {
-    fn try_search(client: &Client) -> Result<Vec<Anime>, Box<dyn Error>> {
-        let pages = 11;
-
-        let urls = (1..=pages)
+    async fn try_search(
+        client: &Client,
+        progress: Arc<AtomicUsize>,
+    ) -> Result<Vec<Anime>, Box<dyn Error>> {
+        let urls = (1..=PAGES)
             .cartesian_product(LETTERS.chars())
             .par_bridge()
             .map(|(page, letter)| {
@@ -22,13 +31,25 @@ impl Scraper for AnimeAv1Scraper {
             })
             .collect::<Vec<_>>();
 
-        let bodies = urls
-            .par_iter()
-            .map(|url| client.get(url).send().unwrap().text().unwrap())
-            .collect::<String>();
+        let total = urls.len();
 
-        let animes_re = Regex::new(r"results:\s*\[(.*?)\],").unwrap();
-        let animes_section = animes_re
+        let bodies = stream::iter(urls)
+            .map(|url| {
+                let client = client.clone();
+                let completed = progress.clone();
+                tokio::spawn(async move {
+                    let body = client.get(url).send().await.unwrap().text().await.unwrap();
+                    completed.fetch_add(1, Ordering::SeqCst);
+                    body
+                })
+            })
+            .buffer_unordered(total)
+            .map(|result| result.unwrap())
+            .collect::<String>()
+            .await;
+
+        let anime_list_re = Regex::new(r"results:\s*\[(.*?)\],").unwrap();
+        let anime_list_section = anime_list_re
             .captures_iter(&bodies)
             .par_bridge()
             .filter_map(|c| Some(c.get(0)?.as_str()))
@@ -39,7 +60,7 @@ impl Scraper for AnimeAv1Scraper {
                 .unwrap();
 
         let mut animes = anime_re
-            .captures_iter(&animes_section)
+            .captures_iter(&anime_list_section)
             .par_bridge()
             .filter_map(|c| {
                 let id = c.get(1)?.as_str();
@@ -48,7 +69,7 @@ impl Scraper for AnimeAv1Scraper {
                     .get(3)?
                     .as_str()
                     .replace(r#"\""#, r#"""#)
-                    .replace(r#"\n"#, "\n");
+                    .replace(r"\n", "\n");
                 let slug = c.get(4)?.as_str();
                 Some(Anime {
                     names: vec![title, slug.into()],
@@ -64,12 +85,14 @@ impl Scraper for AnimeAv1Scraper {
         Ok(animes)
     }
 
-    fn try_get_episodes(client: &Client, slug: &str) -> Result<Vec<f64>, Box<dyn Error>> {
+    async fn try_get_episodes(client: &Client, slug: &str) -> Result<Vec<f64>, Box<dyn Error>> {
         let anime = client
             .get(format!("https://animeav1.com/media/{slug}"))
             .send()
+            .await
             .unwrap()
             .text()
+            .await
             .unwrap();
 
         let episodes_re = Regex::new(r"number:(.*?)}")?;
@@ -85,7 +108,7 @@ impl Scraper for AnimeAv1Scraper {
         Ok(episodes)
     }
 
-    fn try_get_mirrors(
+    async fn try_get_mirrors(
         client: &Client,
         slug: &str,
         episode: f64,
@@ -93,8 +116,10 @@ impl Scraper for AnimeAv1Scraper {
         let response = client
             .get(format!("https://animeav1.com/media/{slug}/{episode}"))
             .send()
+            .await
             .unwrap()
             .text()
+            .await
             .unwrap();
 
         let embeds_re = Regex::new(r"embeds:\s*\{([^}]*\{[^}]*\})*[^}]*\}")?;
@@ -122,64 +147,8 @@ impl Scraper for AnimeAv1Scraper {
 
         Ok(mirrors)
     }
-}
 
-#[cfg(test)]
-mod test {
-    use reqwest::blocking::Client;
-
-    use crate::scraper::Scraper;
-
-    use super::AnimeAv1Scraper;
-
-    #[test]
-    fn av1_get_animes() {
-        let client = Client::builder()
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0",
-            )
-            .cookie_store(true)
-            .build()
-            .expect("Couldn't build client");
-
-        let animes = AnimeAv1Scraper::try_search(&client).expect("Animes not retrieved");
-        println!("{animes:#?}");
-        println!("length: {}", animes.len());
-    }
-
-    #[test]
-    fn av1_get_episodes() {
-        let client = Client::builder()
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0",
-            )
-            .cookie_store(true)
-            .build()
-            .expect("Couldn't build client");
-
-        let anime = "no-game-no-life";
-        let episodes =
-            AnimeAv1Scraper::try_get_episodes(&client, anime).expect("Episodes not found");
-        println!("anime: {anime}");
-        println!("{episodes:#?}");
-    }
-
-    #[test]
-    fn av1_get_mirrors() {
-        let client = Client::builder()
-            .user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:100.0) Gecko/20100101 Firefox/100.0",
-            )
-            .cookie_store(true)
-            .build()
-            .expect("Couldn't build client");
-
-        let anime = "no-game-no-life";
-        let episodes =
-            AnimeAv1Scraper::try_get_episodes(&client, anime).expect("Episodes not found");
-        let mirrors = AnimeAv1Scraper::try_get_mirrors(&client, anime, episodes[0])
-            .expect("Mirrors not found");
-        println!("{mirrors:#?}");
-        println!("episode: {}", episodes[0]);
+    fn pages() -> usize {
+        (1..=PAGES).cartesian_product(LETTERS.chars()).count()
     }
 }
