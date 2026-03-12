@@ -2,7 +2,7 @@
 
 pkgname=ani-link
 pkgver=0.4.1
-pkgrel=3
+pkgrel=4
 pkgdesc="Anime scraper"
 arch=('x86_64')
 url="https://github.com/adriannic/ani-link"
