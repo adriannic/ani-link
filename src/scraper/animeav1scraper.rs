@@ -53,10 +53,11 @@ impl Scraper for AnimeAv1Scraper {
             .captures_iter(&bodies)
             .par_bridge()
             .filter_map(|c| Some(c.get(0)?.as_str()))
-            .collect::<String>();
+            .collect::<String>()
+            .replace('\\', "");
 
         let anime_re =
-            Regex::new(r#"\{id:"(.*?)",title:"(.*?)",synopsis:"(.*?)",.*?slug:"(.*?)",.*?\}"#)
+            Regex::new(r#"\{id:"(.*?)",title:"(.*?)",synopsis:"(.*?)",categoryId.*?slug:"(.*?)",category.*?\}"#)
                 .unwrap();
 
         let mut animes = anime_re
@@ -64,15 +65,11 @@ impl Scraper for AnimeAv1Scraper {
             .par_bridge()
             .filter_map(|c| {
                 let id = c.get(1)?.as_str();
-                let title = c.get(2)?.as_str().replace(r#"\""#, r#"""#);
-                let synopsis = c
-                    .get(3)?
-                    .as_str()
-                    .replace(r#"\""#, r#"""#)
-                    .replace(r"\n", "\n");
+                let title = c.get(2)?.as_str();
+                let synopsis = c.get(3)?.as_str().replace(r"\n", "\n").replace(r".nn", ". ");
                 let slug = c.get(4)?.as_str();
                 Some(Anime {
-                    names: vec![title, slug.into()],
+                    names: vec![title.into(), slug.into()],
                     synopsis,
                     image_url: format!("https://cdn.animeav1.com/covers/{id}.jpg"),
                     image_filename: format!("{id}.jpg"),
