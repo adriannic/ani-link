@@ -1,6 +1,5 @@
 use std::{fmt, str::FromStr, sync::LazyLock};
 
-use clap::ValueEnum;
 use iced::{Color, Theme, color, theme::Palette};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -23,10 +22,7 @@ pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
     )
 });
 
-#[derive(
-    ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default,
-)]
-#[clap(rename_all = "PascalCase")]
+#[derive(Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum Themes {
     #[default]
     AniLink,

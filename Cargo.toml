@@ -2,6 +2,11 @@
 name = "ani-link"
 version = "0.4.1"
 edition = "2024"
+license = "MIT"
+description = "A scraper I created just for fun."
+repository = "https://github.com/adriannic/ani-link"
+categories = []
+keywords = ["anime"]
 
 [profile.dev]
 opt-level = 1
@@ -13,16 +18,22 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
+[lints.clippy]
+correctness = "warn"
+suspicious = "warn"
+complexity = "warn"
+perf = "warn"
+style = "warn"
+pedantic = "warn"
+nursery = "warn"
+
 [dependencies]
-bytes = "1.11.1"
-clap = { version = "4.5.60", features = ["derive"] }
 colors-transform = "0.2.11"
 dirs = "6.0.0"
-figment = { version = "0.10.19", features = ["toml", "env"] }
+figment = { version = "0.10.19", features = ["toml"] }
 iced = { version = "0.13.1", features = ["image", "advanced", "tokio"] }
 image = "0.25.9"
 itertools = "0.14.0"
-lru = "0.16.3"
 notify-rust = "4.12.0"
 rayon = "1.11.0"
 regex = "1.12.3"

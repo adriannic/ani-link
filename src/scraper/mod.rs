@@ -6,7 +6,6 @@ use std::{
 };
 
 use anime::Anime;
-use clap::ValueEnum;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -20,10 +19,7 @@ pub mod animeflvscraper;
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseScraperError;
 
-#[derive(
-    ValueEnum, Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default,
-)]
-#[clap(rename_all = "PascalCase")]
+#[derive(Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum ScraperImpl {
     #[default]
     AnimeAv1Scraper,
