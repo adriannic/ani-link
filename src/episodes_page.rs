@@ -7,7 +7,7 @@ use crate::{
     app,
     config::Config,
     page::{AppUpdate, Page},
-    presets::{help_text, square_box, transparent_button_cond},
+    presets::{square_box, transparent_button_cond},
     scraper::anime::Anime,
     search_page::SearchPage,
 };
@@ -22,9 +22,9 @@ use iced::{
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
     widget::{
-        Column, Scrollable, column, container, row,
+        Column, Scrollable, column, container, rich_text,
         scrollable::{self, Direction, Scrollbar},
-        text,
+        span,
     },
 };
 use itertools::Itertools;
@@ -33,7 +33,7 @@ use reqwest::Client;
 use tokio::runtime::Handle;
 
 const EPISODES_SCROLLABLE_ID: &str = "episodes_scrollable";
-const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
+pub const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -83,19 +83,19 @@ impl Page for EpisodesPage {
                         bottom: 3.0,
                         left: 6.0
                     }),
-                    container(row![
-                        text("Subir:"),
-                        help_text(" ↑ K "),
-                        text(" Bajar:"),
-                        help_text(" ↓ J "),
-                        text(" Confirmar:"),
-                        help_text(" → L Enter "),
-                        text(" Descargar:"),
-                        help_text(" D "),
-                        text(" Syncplay:"),
-                        help_text(" S "),
-                        text(" Salir:"),
-                        help_text(" ← H Esc Q"),
+                    container(rich_text![
+                        span("Subir:").color(self.theme.palette().text),
+                        span(" ↑ K ").color(self.theme.palette().primary),
+                        span(" Bajar:").color(self.theme.palette().text),
+                        span(" ↓ J ").color(self.theme.palette().primary),
+                        span(" Confirmar:").color(self.theme.palette().text),
+                        span(" → L Enter ").color(self.theme.palette().primary),
+                        span(" Descargar:").color(self.theme.palette().text),
+                        span(" D ").color(self.theme.palette().primary),
+                        span(" Syncplay:").color(self.theme.palette().text),
+                        span(" S ").color(self.theme.palette().primary),
+                        span(" Salir:").color(self.theme.palette().text),
+                        span(" ← H Esc Q").color(self.theme.palette().primary),
                     ])
                     .align_x(Horizontal::Center)
                     .width(Length::Fill),
@@ -237,7 +237,7 @@ impl EpisodesPage {
                 .arg(mirror)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
-                .status()
+                .spawn()
                 .is_ok()
         });
 
@@ -303,7 +303,7 @@ impl EpisodesPage {
                 ))
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
-                .status()
+                .spawn()
                 .is_ok()
         });
 
@@ -351,7 +351,7 @@ impl EpisodesPage {
                 .arg(mirror)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
-                .status()
+                .spawn()
                 .is_ok()
         });
 

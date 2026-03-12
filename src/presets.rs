@@ -44,15 +44,6 @@ pub fn square_box<'a, Message: 'a>(
     .padding(3)
 }
 
-pub fn help_text<'a, Message: 'a>(
-    content: impl Into<Element<'a, Message>>,
-) -> Container<'a, Message> {
-    Container::new(content).style(|theme: &iced::Theme| container::Style {
-        text_color: Some(theme.palette().primary),
-        ..Default::default()
-    })
-}
-
 pub fn transparent_button<'a, Message: 'a>(content: &str, selected: bool) -> Button<'a, Message> {
     let string = if selected {
         format!("> {content}")

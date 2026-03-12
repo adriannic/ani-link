@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "ani-link"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "bytes",
  "clap",
@@ -4014,7 +4014,9 @@ dependencies = [
  "cookie",
  "cookie_store",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
+ "futures-util",
  "h2",
  "http",
  "http-body",

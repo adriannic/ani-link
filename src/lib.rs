@@ -1,5 +1,4 @@
 pub mod app;
-mod cached_image;
 mod config;
 mod episodes_page;
 mod list_query_state;

@@ -1,6 +1,6 @@
+use dirs::video_dir;
 use iced::{
     Border, Element, Event, Font, Length, Padding, Task, Theme,
-    advanced::image::Bytes,
     alignment::{Horizontal, Vertical},
     event::{self, Status},
     keyboard::{
@@ -9,29 +9,33 @@ use iced::{
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
     widget::{
-        self, Column, Scrollable, column, container, image, row,
+        self, Column, Scrollable, column, container, image, rich_text, row,
         scrollable::{self, Direction, Scrollbar},
-        text, text_input,
+        span, text, text_input,
     },
 };
+use itertools::Itertools;
+use notify_rust::Notification;
 use rayon::prelude::*;
 use reqwest::Client;
 use rust_fuzzy_search::fuzzy_compare;
 use std::{
+    env::temp_dir,
+    fs::write,
     mem,
+    process::{Command, Stdio},
     sync::{Arc, atomic::AtomicUsize},
 };
 use tokio::runtime::Handle;
 
 use crate::{
     app,
-    cached_image::CachedImage,
     config::Config,
-    episodes_page::EpisodesPage,
+    episodes_page::{EpisodesPage, WHITELIST},
     list_query_state::ListQueryState,
     main_menu_page::{MainMenuPage, Selection},
     page::{AppUpdate, Page},
-    presets::{help_text, highlight, square_box, transparent_button_cond},
+    presets::{highlight, square_box, transparent_button_cond},
     scraper::anime::Anime,
 };
 
@@ -61,7 +65,6 @@ impl Page for SearchPage {
     fn view(&self) -> iced::Element<'_, crate::app::Message> {
         let selected = self.selected;
         let anime = &self.filtered_list[self.selected];
-        let cached_image = CachedImage::new(self.client.clone(), anime.image_url.clone());
         column![
             square_box(
                 column![
@@ -110,20 +113,25 @@ impl Page for SearchPage {
                             bottom: 3.0,
                             left: 6.0
                         }),
-                        container(row![
-                            text("Subir:"),
-                            help_text(" ↑ K "),
-                            text(" Bajar:"),
-                            help_text(" ↓ J "),
-                            text(" Confirmar:"),
-                            help_text(" → L Enter "),
-                            text(" Buscar:"),
-                            help_text(" F /"),
-                            text(" Salir:"),
-                            help_text(" ← H Esc Q"),
+                        container(rich_text![
+                            span("Subir:").color(self.theme.palette().text),
+                            span(" ↑ K ").color(self.theme.palette().primary),
+                            span(" Bajar:").color(self.theme.palette().text),
+                            span(" ↓ J ").color(self.theme.palette().primary),
+                            span(" Confirmar:").color(self.theme.palette().text),
+                            span(" → L Enter ").color(self.theme.palette().primary),
+                            span(" Buscar:").color(self.theme.palette().text),
+                            span(" F / ").color(self.theme.palette().primary),
+                            span(" Descargar:").color(self.theme.palette().text),
+                            span(" D ").color(self.theme.palette().primary),
+                            span(" Syncplay:").color(self.theme.palette().text),
+                            span(" S ").color(self.theme.palette().primary),
+                            span(" Salir:").color(self.theme.palette().text),
+                            span(" ← H Esc Q").color(self.theme.palette().primary),
                         ])
                         .align_x(Horizontal::Center)
-                        .width(Length::Fill),
+                        .width(Length::Fill)
+                        .clip(true),
                     ]
                     .spacing(3)
                     .padding(3)
@@ -134,8 +142,10 @@ impl Page for SearchPage {
                         Scrollable::new(
                             column![
                                 column![
-                                    image(image::Handle::from_bytes(Bytes::from(cached_image)))
-                                        .width(Length::Fill),
+                                    image(image::Handle::from_bytes(
+                                        anime.get_image(self.config.scraper)
+                                    ))
+                                    .width(Length::Fill),
                                     text(&anime.names[0])
                                         .font(Font {
                                             weight: iced::font::Weight::Bold,
@@ -243,6 +253,14 @@ impl Page for SearchPage {
                             self.scroll_to_index(),
                         ]))
                     }
+                    Key::Character("d") => {
+                        self.download_anime();
+                        AppUpdate::None
+                    }
+                    Key::Character("s") => {
+                        self.stream_anime();
+                        AppUpdate::None
+                    }
                     Key::Character("q" | "h") | Key::Named(Escape | ArrowLeft) => {
                         AppUpdate::Page(Box::new(MainMenuPage {
                             config: mem::take(&mut self.config),
@@ -327,5 +345,138 @@ impl SearchPage {
         });
 
         self.filtered_list = result.into_iter().map(|(anime, _)| anime).collect();
+    }
+
+    fn download_anime(&mut self) {
+        let anime = &self.filtered_list[self.selected];
+        let episodes = Handle::current()
+            .block_on(
+                self.config
+                    .scraper
+                    .try_get_episodes(&self.client, &anime.names[1]),
+            )
+            .expect("Couldn't get episodes");
+
+        Notification::new()
+            .summary("Ani-link")
+            .body(
+                format!(
+                    r"Descargando todos los episodios de {}, por favor, espera.",
+                    anime.names[0]
+                )
+                .as_str(),
+            )
+            .show()
+            .unwrap();
+
+        for episode in episodes {
+            let mirrors = Handle::current()
+                .block_on(self.config.scraper.try_get_mirrors(
+                    &self.client,
+                    &anime.names[1],
+                    episode,
+                ))
+                .expect("Couldn't get mirrors");
+
+            let viewable = mirrors
+                .iter()
+                .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+                .collect_vec();
+
+            let success = viewable.iter().all(|mirror| {
+                let mut command = Command::new(format!(
+                    "yt-dlp{}",
+                    if cfg!(target_os = "windows") {
+                        ".exe"
+                    } else {
+                        ""
+                    }
+                ));
+
+                let slug = anime.names[1].as_str();
+
+                command
+                    .arg(mirror)
+                    .arg("--no-check-certificates")
+                    .arg("--output")
+                    .arg(format!(
+                        "{}/ani-link/{slug}/{slug}-{episode}.%(ext)s",
+                        video_dir()
+                            .expect("Video path not found")
+                            .into_os_string()
+                            .into_string()
+                            .expect("Video path could not be converted to string"),
+                    ))
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .is_ok()
+            });
+
+            if !success {
+                Notification::new()
+                    .summary("Ani-link")
+                    .body(&format!("No se ha podido descargar el episodio {episode}"))
+                    .show()
+                    .unwrap();
+            }
+        }
+    }
+
+    fn stream_anime(&mut self) {
+        let anime = &self.filtered_list[self.selected];
+        let viewable = Handle::current()
+            .block_on(
+                self.config
+                    .scraper
+                    .try_get_episodes(&self.client, &anime.names[1]),
+            )
+            .expect("Couldn't get episodes")
+            .iter()
+            .flat_map(|&episode| {
+                Handle::current()
+                    .block_on(self.config.scraper.try_get_mirrors(
+                        &self.client,
+                        &anime.names[1],
+                        episode,
+                    ))
+                    .expect("Couldn't get mirrors")
+                    .iter()
+                    .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+                    .map(ToOwned::to_owned)
+                    .collect_vec()
+            })
+            .join("\n");
+
+        let mut path = temp_dir();
+        path.push("ani-link");
+        path.push("playlist.txt");
+
+        write(&path, viewable).expect("Couldn't create playlist file");
+
+        let mut command = Command::new(format!(
+            "syncplay{}",
+            if cfg!(target_os = "windows") {
+                ".exe"
+            } else {
+                ""
+            }
+        ));
+
+        let success = command
+            .arg("--load-playlist-from-file")
+            .arg(path.to_str().expect("Couldn't convert path to string"))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .is_ok();
+
+        if !success {
+            Notification::new()
+                .summary("Ani-link")
+                .body("No se ha podido abrir syncplay")
+                .show()
+                .unwrap();
+        }
     }
 }

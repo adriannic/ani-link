@@ -9,7 +9,7 @@ use iced::{
         Key,
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
-    widget::{Space, column, container, row, text},
+    widget::{Space, column, container, rich_text, span},
 };
 use reqwest::Client;
 use strum_macros::EnumIter;
@@ -20,7 +20,7 @@ use crate::{
     list_query_state::ListQueryState,
     main_menu_page::{self, MainMenuPage},
     page::{AppUpdate, Page},
-    presets::{help_text, options_item, square_box},
+    presets::{options_item, square_box},
     scraper::ScraperImpl,
     themes::Themes,
 };
@@ -103,19 +103,19 @@ impl Page for OptionsPage {
             .spacing(6)
             .padding(6),
             Space::with_height(Length::Fill),
-            container(row![
-                text("Subir:"),
-                help_text(" ↑ K "),
-                text(" Bajar:"),
-                help_text(" ↓ J "),
-                text(" Siguiente:"),
-                help_text(" → L "),
-                text(" Anterior:"),
-                help_text(" ← H "),
-                text(" Guardar:"),
-                help_text(" Enter "),
-                text(" Salir sin guardar:"),
-                help_text(" Esc Q"),
+            container(rich_text![
+                span("Subir:").color(self.theme.palette().text),
+                span(" ↑ K ").color(self.theme.palette().primary),
+                span(" Bajar:").color(self.theme.palette().text),
+                span(" ↓ J ").color(self.theme.palette().primary),
+                span(" Siguiente:").color(self.theme.palette().text),
+                span(" → L ").color(self.theme.palette().primary),
+                span(" Anterior:").color(self.theme.palette().text),
+                span(" ← H ").color(self.theme.palette().primary),
+                span(" Guardar:").color(self.theme.palette().text),
+                span(" Enter ").color(self.theme.palette().primary),
+                span(" Salir sin guardar:").color(self.theme.palette().text),
+                span(" Esc Q").color(self.theme.palette().primary),
             ])
             .align_x(Horizontal::Center)
             .width(Length::Fill),

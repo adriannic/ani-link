@@ -10,7 +10,7 @@ use iced::{
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
     time::{self, Duration},
-    widget::{Space, column, container, row, text, text_input},
+    widget::{Space, column, container, rich_text, span, text, text_input},
 };
 use reqwest::Client;
 use strum_macros::EnumIter;
@@ -21,7 +21,7 @@ use crate::{
     list_query_state::ListQueryState,
     options_page::{self, OptionsPage},
     page::{AppUpdate, Page},
-    presets::{help_text, square_box, transparent_button},
+    presets::{square_box, transparent_button},
     search_page::{SEARCH_BAR_ID, SearchPage},
 };
 
@@ -130,15 +130,15 @@ impl Page for MainMenuPage {
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             Space::with_height(Length::Fill),
-            container(row![
-                text("Subir:"),
-                help_text(" ↑ K "),
-                text(" Bajar:"),
-                help_text(" ↓ J "),
-                text(" Confirmar:"),
-                help_text(" → L Enter "),
-                text(" Salir:"),
-                help_text(" ← H Esc"),
+            container(rich_text![
+                span("Subir:").color(self.theme.palette().text),
+                span(" ↑ K ").color(self.theme.palette().primary),
+                span(" Bajar:").color(self.theme.palette().text),
+                span(" ↓ J ").color(self.theme.palette().primary),
+                span(" Confirmar:").color(self.theme.palette().text),
+                span(" → L Enter ").color(self.theme.palette().primary),
+                span(" Salir:").color(self.theme.palette().text),
+                span(" ← H Esc").color(self.theme.palette().primary),
             ])
             .align_x(Horizontal::Center)
             .width(Length::Fill),
