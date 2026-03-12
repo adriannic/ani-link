@@ -24,7 +24,7 @@ impl Config {
         let mut config_path = config_dir().expect("Config path not found");
         config_path.push("ani-link.toml");
 
-        let config: Config = Figment::from(Serialized::defaults(Config::default()))
+        let config: Self = Figment::from(Serialized::defaults(Self::default()))
             .merge(Toml::file(config_path.clone()))
             .extract()?;
 

@@ -156,7 +156,7 @@ impl FromStr for Themes {
 }
 
 impl Themes {
-    pub fn next(self) -> Self {
+    pub const fn next(self) -> Self {
         match self {
             Self::AniLink => Self::Light,
             Self::Light => Self::Dark,
@@ -184,7 +184,7 @@ impl Themes {
         }
     }
 
-    pub fn prev(self) -> Self {
+    pub const fn prev(self) -> Self {
         match self {
             Self::AniLink => Self::Ferra,
             Self::Light => Self::AniLink,

@@ -59,18 +59,14 @@ impl Page for EpisodesPage {
                 column![
                     container(
                         Scrollable::new(Column::with_children(
-                            self.episodes
-                                .iter()
-                                .enumerate()
-                                .map(|(i, episode)| {
-                                    Element::new(
-                                        transparent_button_cond(&format!("{episode}"), || {
-                                            selected == i
-                                        })
-                                        .on_press(app::Message::Episodes(Message::Click(i))),
-                                    )
-                                })
-                                .collect::<Vec<_>>()
+                            self.episodes.iter().enumerate().map(|(i, episode)| {
+                                Element::new(
+                                    transparent_button_cond(&format!("{episode}"), || {
+                                        selected == i
+                                    })
+                                    .on_press(app::Message::Episodes(Message::Click(i))),
+                                )
+                            })
                         ))
                         .id(scrollable::Id::new(EPISODES_SCROLLABLE_ID))
                         .width(Length::Fill)
@@ -201,7 +197,7 @@ impl EpisodesPage {
         )
     }
 
-    fn play_episode(&mut self) {
+    fn play_episode(&self) {
         let episode = self.episodes[self.selected];
 
         let mirrors = Handle::current()
@@ -250,7 +246,7 @@ impl EpisodesPage {
         }
     }
 
-    fn download_episode(&mut self) {
+    fn download_episode(&self) {
         let episode = self.episodes[self.selected];
         let mirrors = Handle::current()
             .block_on(self.config.scraper.try_get_mirrors(
@@ -322,7 +318,7 @@ impl EpisodesPage {
         }
     }
 
-    fn stream_episode(&mut self) {
+    fn stream_episode(&self) {
         let episode = self.episodes[self.selected];
         let mirrors = Handle::current()
             .block_on(self.config.scraper.try_get_mirrors(

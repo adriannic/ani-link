@@ -90,17 +90,13 @@ impl Page for SearchPage {
                     column![
                         container(
                             Scrollable::new(Column::with_children(
-                                self.filtered_list
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, anime)| {
-                                        let name = anime.names[0].clone();
-                                        Element::new(
-                                            transparent_button_cond(&name, || selected == i)
-                                                .on_press(app::Message::Search(Message::Click(i))),
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
+                                self.filtered_list.iter().enumerate().map(|(i, anime)| {
+                                    let name = anime.names[0].clone();
+                                    Element::new(
+                                        transparent_button_cond(&name, || selected == i)
+                                            .on_press(app::Message::Search(Message::Click(i))),
+                                    )
+                                })
                             ))
                             .id(scrollable::Id::new(SEARCH_SCROLLABLE_ID))
                             .width(Length::Fill)
@@ -347,7 +343,7 @@ impl SearchPage {
         self.filtered_list = result.into_iter().map(|(anime, _)| anime).collect();
     }
 
-    fn download_anime(&mut self) {
+    fn download_anime(&self) {
         let anime = &self.filtered_list[self.selected];
         let episodes = Handle::current()
             .block_on(
@@ -423,7 +419,7 @@ impl SearchPage {
         }
     }
 
-    fn stream_anime(&mut self) {
+    fn stream_anime(&self) {
         let anime = &self.filtered_list[self.selected];
         let viewable = Handle::current()
             .block_on(

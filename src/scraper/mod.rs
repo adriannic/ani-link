@@ -49,14 +49,14 @@ impl fmt::Display for ScraperImpl {
 }
 
 impl ScraperImpl {
-    pub fn next(self) -> Self {
+    pub const fn next(self) -> Self {
         match self {
             Self::AnimeAv1Scraper => Self::AnimeFlvScraper,
             Self::AnimeFlvScraper => Self::AnimeAv1Scraper,
         }
     }
 
-    pub fn prev(self) -> Self {
+    pub const fn prev(self) -> Self {
         match self {
             Self::AnimeAv1Scraper => Self::AnimeFlvScraper,
             Self::AnimeFlvScraper => Self::AnimeAv1Scraper,

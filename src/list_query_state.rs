@@ -20,7 +20,7 @@ impl ListQueryState {
     pub fn spawn(scraper: ScraperImpl, client: Client) -> Self {
         let progress = Arc::new(AtomicUsize::new(0));
         let progress2 = progress.clone();
-        ListQueryState::Obtaining(
+        Self::Obtaining(
             tokio::spawn(async move {
                 scraper
                     .try_search(&client, progress)

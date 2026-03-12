@@ -39,14 +39,14 @@ pub enum Selection {
 }
 
 impl Selection {
-    pub fn next(self) -> Self {
+    pub const fn next(self) -> Self {
         match self {
             Self::Search => Self::Options,
             Self::Options | Self::Exit => Self::Exit,
         }
     }
 
-    pub fn prev(self) -> Self {
+    pub const fn prev(self) -> Self {
         match self {
             Self::Search | Self::Options => Self::Search,
             Self::Exit => Self::Options,

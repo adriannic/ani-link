@@ -59,14 +59,12 @@ impl Default for App {
 impl App {
     #[allow(clippy::missing_errors_doc)]
     pub fn run() -> iced::Result {
-        iced::application("Ani-Link", App::update, App::view)
+        iced::application("Ani-Link", Self::update, Self::view)
             .theme(|app| app.page.theme())
-            .subscription(App::subscription)
+            .subscription(Self::subscription)
             .transparent(true)
             .antialiasing(true)
-            .settings(Settings {
-                ..Default::default()
-            })
+            .settings(Settings::default())
             .font(include_bytes!("../assets/font.ttf"))
             .default_font(Font {
                 weight: iced::font::Weight::Normal,
