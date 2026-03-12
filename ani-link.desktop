@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Ani-link
+Comment=
+Exec=/usr/bin/ani-link
+Icon=folder-pictures
+Terminal=false
+Type=Application

@@ -2,7 +2,7 @@
 
 pkgname=ani-link
 pkgver=0.4.1
-pkgrel=2
+pkgrel=3
 pkgdesc="Anime scraper"
 arch=('x86_64')
 url="https://github.com/adriannic/ani-link"
@@ -20,4 +20,5 @@ build() {
 package () {
   cd "$startdir"
   install -Dm755 target/release/ani-link "$pkgdir"/usr/bin/ani-link
+  install -Dm755 ani-link.desktop "$pkgdir"/usr/share/applications/ani-link.desktop
 }
