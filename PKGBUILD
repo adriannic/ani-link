@@ -2,12 +2,13 @@
 
 pkgname=ani-link
 pkgver=0.4.1
-pkgrel=1
+pkgrel=2
 pkgdesc="Anime scraper"
 arch=('x86_64')
 url="https://github.com/adriannic/ani-link"
 makedepends=('rust')
-optdepends=('mpv: to open episodes in mpv' 'yt-dlp: to open episodes in mpv')
+depends=('mpv' 'yt-dlp')
+optdepends=('syncplay: for syncplay support')
 source=()
 options=(!debug)
 
