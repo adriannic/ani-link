@@ -2,9 +2,11 @@ use colors_transform::{Color, Rgb};
 use iced::{
     Border, Element, Length,
     overlay::menu,
-    widget::{Button, Container, Space, button, column, container, pick_list, row, text},
+    widget::{Button, Container, Space, button, column, container, pick_list, row, slider, text},
 };
 use strum::IntoEnumIterator;
+
+use crate::app;
 
 pub fn highlight(color: iced::Color, percentage: f32) -> iced::Color {
     let [r, g, b, a] = color.into_rgba8();
@@ -86,12 +88,12 @@ pub fn transparent_button_cond<'a, Message: 'a>(
         .padding(0)
 }
 
-pub fn options_item<'a, T: IntoEnumIterator + ToString, Message: Clone + 'a>(
+pub fn options_list<'a, T: IntoEnumIterator + ToString>(
     name: &str,
     selected: bool,
     current: Option<String>,
-    callback: impl Fn(String) -> Message + 'a,
-) -> Container<'a, Message> {
+    callback: impl Fn(String) -> app::Message + 'a,
+) -> Container<'a, app::Message> {
     Container::new(
         column![
             transparent_button(name, selected),
@@ -132,6 +134,27 @@ pub fn options_item<'a, T: IntoEnumIterator + ToString, Message: Clone + 'a>(
                         },
                     }
                 })
+            ]
+        ]
+        .spacing(6),
+    )
+}
+
+pub fn options_slider<'a>(
+    name: &str,
+    selected: bool,
+    current: f32,
+    callback: impl Fn(f32) -> app::Message + 'a,
+) -> Container<'a, app::Message> {
+    Container::new(
+        column![
+            transparent_button(
+                &format!("{}{}", name, f32::round(current * 255.0)),
+                selected
+            ),
+            row![
+                Space::with_width(Length::Fixed(18.0)),
+                slider(0.0..=1.0, current, callback).step(1.0 / 255.0),
             ]
         ]
         .spacing(6),

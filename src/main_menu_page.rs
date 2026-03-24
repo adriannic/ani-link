@@ -1,7 +1,7 @@
 use std::{fmt, mem, process::exit, sync::atomic::Ordering};
 
 use iced::{
-    Event, Font, Length, Subscription, Theme,
+    Event, Font, Length, Subscription,
     alignment::Horizontal,
     event::{self, Status},
     keyboard::{
@@ -71,7 +71,6 @@ impl fmt::Display for Selection {
 pub struct MainMenuPage {
     pub config: Config,
     pub client: Client,
-    pub theme: Theme,
     pub selection: Selection,
     pub anime_list: ListQueryState,
     pub waiting: bool,
@@ -131,14 +130,14 @@ impl Page for MainMenuPage {
             .width(Length::Fill),
             Space::with_height(Length::Fill),
             container(rich_text![
-                span("Subir:").color(self.theme.palette().text),
-                span(" ↑ K ").color(self.theme.palette().primary),
-                span(" Bajar:").color(self.theme.palette().text),
-                span(" ↓ J ").color(self.theme.palette().primary),
-                span(" Confirmar:").color(self.theme.palette().text),
-                span(" → L Enter ").color(self.theme.palette().primary),
-                span(" Salir:").color(self.theme.palette().text),
-                span(" ← H Esc").color(self.theme.palette().primary),
+                span("Subir:").color(self.config.theme().palette().text),
+                span(" ↑ K ").color(self.config.theme().palette().primary),
+                span(" Bajar:").color(self.config.theme().palette().text),
+                span(" ↓ J ").color(self.config.theme().palette().primary),
+                span(" Confirmar:").color(self.config.theme().palette().text),
+                span(" → L Enter ").color(self.config.theme().palette().primary),
+                span(" Salir:").color(self.config.theme().palette().text),
+                span(" ← H Esc").color(self.config.theme().palette().primary),
             ])
             .align_x(Horizontal::Center)
             .width(Length::Fill),
@@ -178,7 +177,6 @@ impl Page for MainMenuPage {
                         Box::new(SearchPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
-                            theme: mem::take(&mut self.theme),
                             anime_list,
                             query: String::new(),
                             selected: 0,
@@ -191,7 +189,6 @@ impl Page for MainMenuPage {
                     old_config: self.config.clone(),
                     config: mem::take(&mut self.config),
                     client: mem::take(&mut self.client),
-                    theme: mem::take(&mut self.theme),
                     anime_list: mem::take(&mut self.anime_list),
                     selection: options_page::Options::Scraper,
                 })),
@@ -242,7 +239,6 @@ impl Page for MainMenuPage {
                     Box::new(SearchPage {
                         config: mem::take(&mut self.config),
                         client: mem::take(&mut self.client),
-                        theme: mem::take(&mut self.theme),
                         anime_list,
                         query: String::new(),
                         selected: 0,
@@ -276,6 +272,6 @@ impl Page for MainMenuPage {
     }
 
     fn theme(&self) -> iced::Theme {
-        self.theme.clone()
+        self.config.theme()
     }
 }

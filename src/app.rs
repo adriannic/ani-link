@@ -39,7 +39,6 @@ impl Default for App {
             });
 
         let scraper = config.scraper;
-        let theme = config.theme.into();
 
         let anime_list = ListQueryState::spawn(scraper, client.clone());
 
@@ -47,7 +46,6 @@ impl Default for App {
             page: Box::new(MainMenuPage {
                 config,
                 client,
-                theme,
                 selection: main_menu_page::Selection::Search,
                 anime_list,
                 waiting: false,

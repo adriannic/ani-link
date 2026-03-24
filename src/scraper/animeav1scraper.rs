@@ -66,7 +66,11 @@ impl Scraper for AnimeAv1Scraper {
             .filter_map(|c| {
                 let id = c.get(1)?.as_str();
                 let title = c.get(2)?.as_str();
-                let synopsis = c.get(3)?.as_str().replace(r"\n", "\n").replace(r".nn", ". ");
+                let synopsis = c
+                    .get(3)?
+                    .as_str()
+                    .replace(r"\n", "\n")
+                    .replace(r".nn", ". ");
                 let slug = c.get(4)?.as_str();
                 Some(Anime {
                     names: vec![title.into(), slug.into()],

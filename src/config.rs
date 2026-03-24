@@ -3,20 +3,22 @@ use std::fs::File;
 use std::io::Write;
 
 use dirs::config_dir;
-use figment::Figment;
-use figment::providers::Format;
-use figment::providers::Serialized;
-use figment::providers::Toml;
-use serde::Deserialize;
-use serde::Serialize;
+use figment::{
+    Figment,
+    providers::{Format, Serialized, Toml},
+};
+use serde::{Deserialize, Serialize};
 
-use crate::scraper::ScraperImpl;
-use crate::themes::Themes;
+use crate::{
+    scraper::ScraperImpl,
+    themes::{PaletteWrapper, Themes},
+};
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct Config {
     pub scraper: ScraperImpl,
     pub theme: Themes,
+    pub palette: PaletteWrapper,
 }
 
 impl Config {
@@ -43,5 +45,13 @@ impl Config {
             .ok();
 
         Ok(())
+    }
+
+    pub fn theme(&self) -> iced::Theme {
+        if matches!(self.theme, Themes::Custom) {
+            iced::Theme::custom("custom".into(), self.palette.0)
+        } else {
+            self.theme.into()
+        }
     }
 }

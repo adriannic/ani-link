@@ -6,7 +6,7 @@ use strum_macros::EnumIter;
 
 pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
     iced::Theme::custom(
-        "custom".into(),
+        "anilink".into(),
         Palette {
             background: Color::from_rgba(
                 f32::from(0x03_u16) / 255.0,
@@ -22,10 +22,44 @@ pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
     )
 });
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(remote = "Color")]
+pub struct ColorDef {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(remote = "Palette")]
+pub struct PaletteDef {
+    #[serde(with = "ColorDef")]
+    pub background: Color,
+    #[serde(with = "ColorDef")]
+    pub text: Color,
+    #[serde(with = "ColorDef")]
+    pub primary: Color,
+    #[serde(with = "ColorDef")]
+    pub success: Color,
+    #[serde(with = "ColorDef")]
+    pub danger: Color,
+}
+
+#[derive(Clone, Debug, Copy, Serialize, Deserialize, PartialEq)]
+pub struct PaletteWrapper(#[serde(with = "PaletteDef")] pub Palette);
+
+impl Default for PaletteWrapper {
+    fn default() -> Self {
+        Self(ANILINK_THEME.palette())
+    }
+}
+
 #[derive(Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum Themes {
     #[default]
     AniLink,
+    Custom,
     Light,
     Dark,
     Dracula,
@@ -54,7 +88,7 @@ pub enum Themes {
 impl Into<iced::Theme> for Themes {
     fn into(self) -> iced::Theme {
         match self {
-            Self::AniLink => ANILINK_THEME.clone(),
+            Self::AniLink | Self::Custom => ANILINK_THEME.clone(),
             Self::Light => Theme::Light,
             Self::Dark => Theme::Dark,
             Self::Dracula => Theme::Dracula,
@@ -88,6 +122,7 @@ impl fmt::Display for Themes {
             "{}",
             match self {
                 Self::AniLink => "AniLink",
+                Self::Custom => "Custom",
                 Self::Light => "Light",
                 Self::Dark => "Dark",
                 Self::Dracula => "Dracula",
@@ -154,7 +189,8 @@ impl FromStr for Themes {
 impl Themes {
     pub const fn next(self) -> Self {
         match self {
-            Self::AniLink => Self::Light,
+            Self::AniLink => Self::Custom,
+            Self::Custom => Self::Light,
             Self::Light => Self::Dark,
             Self::Dark => Self::Dracula,
             Self::Dracula => Self::Nord,
@@ -183,7 +219,8 @@ impl Themes {
     pub const fn prev(self) -> Self {
         match self {
             Self::AniLink => Self::Ferra,
-            Self::Light => Self::AniLink,
+            Self::Custom => Self::AniLink,
+            Self::Light => Self::Custom,
             Self::Dark => Self::Light,
             Self::Dracula => Self::Dark,
             Self::Nord => Self::Dracula,

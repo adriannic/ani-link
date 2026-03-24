@@ -1,6 +1,6 @@
 use dirs::video_dir;
 use iced::{
-    Border, Element, Event, Font, Length, Padding, Task, Theme,
+    Border, Element, Event, Font, Length, Padding, Task,
     alignment::{Horizontal, Vertical},
     event::{self, Status},
     keyboard::{
@@ -53,7 +53,6 @@ pub enum Message {
 pub struct SearchPage {
     pub config: Config,
     pub client: Client,
-    pub theme: Theme,
     pub anime_list: Vec<Anime>,
     pub query: String,
     pub selected: usize,
@@ -110,20 +109,20 @@ impl Page for SearchPage {
                             left: 6.0
                         }),
                         container(rich_text![
-                            span("Subir:").color(self.theme.palette().text),
-                            span(" ↑ K ").color(self.theme.palette().primary),
-                            span(" Bajar:").color(self.theme.palette().text),
-                            span(" ↓ J ").color(self.theme.palette().primary),
-                            span(" Confirmar:").color(self.theme.palette().text),
-                            span(" → L Enter ").color(self.theme.palette().primary),
-                            span(" Buscar:").color(self.theme.palette().text),
-                            span(" F / ").color(self.theme.palette().primary),
-                            span(" Descargar:").color(self.theme.palette().text),
-                            span(" D ").color(self.theme.palette().primary),
-                            span(" Syncplay:").color(self.theme.palette().text),
-                            span(" S ").color(self.theme.palette().primary),
-                            span(" Salir:").color(self.theme.palette().text),
-                            span(" ← H Esc Q").color(self.theme.palette().primary),
+                            span("Subir:").color(self.config.theme().palette().text),
+                            span(" ↑ K ").color(self.config.theme().palette().primary),
+                            span(" Bajar:").color(self.config.theme().palette().text),
+                            span(" ↓ J ").color(self.config.theme().palette().primary),
+                            span(" Confirmar:").color(self.config.theme().palette().text),
+                            span(" → L Enter ").color(self.config.theme().palette().primary),
+                            span(" Buscar:").color(self.config.theme().palette().text),
+                            span(" F / ").color(self.config.theme().palette().primary),
+                            span(" Descargar:").color(self.config.theme().palette().text),
+                            span(" D ").color(self.config.theme().palette().primary),
+                            span(" Syncplay:").color(self.config.theme().palette().text),
+                            span(" S ").color(self.config.theme().palette().primary),
+                            span(" Salir:").color(self.config.theme().palette().text),
+                            span(" ← H Esc Q").color(self.config.theme().palette().primary),
                         ])
                         .align_x(Horizontal::Center)
                         .width(Length::Fill)
@@ -200,7 +199,6 @@ impl Page for SearchPage {
                     AppUpdate::Page(Box::new(EpisodesPage {
                         config: mem::take(&mut self.config),
                         client: mem::take(&mut self.client),
-                        theme: mem::take(&mut self.theme),
                         selected: 0,
                         anime_list: mem::take(&mut self.anime_list),
                         anime: anime.clone(),
@@ -235,7 +233,6 @@ impl Page for SearchPage {
                         AppUpdate::Page(Box::new(EpisodesPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
-                            theme: mem::take(&mut self.theme),
                             selected: 0,
                             anime_list: mem::take(&mut self.anime_list),
                             anime: anime.clone(),
@@ -261,7 +258,6 @@ impl Page for SearchPage {
                         AppUpdate::Page(Box::new(MainMenuPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
-                            theme: self.theme.clone(),
                             selection: Selection::Search,
                             anime_list: ListQueryState::Obtained(
                                 mem::take(&mut self.anime_list),
@@ -288,7 +284,7 @@ impl Page for SearchPage {
     }
 
     fn theme(&self) -> iced::Theme {
-        self.theme.clone()
+        self.config.theme()
     }
 }
 
