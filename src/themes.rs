@@ -49,6 +49,18 @@ pub struct PaletteDef {
 #[derive(Clone, Debug, Copy, Serialize, Deserialize, PartialEq)]
 pub struct PaletteWrapper(#[serde(with = "PaletteDef")] pub Palette);
 
+impl From<Palette> for PaletteWrapper {
+    fn from(value: Palette) -> Self {
+        Self(value)
+    }
+}
+
+impl From<PaletteWrapper> for Palette {
+    fn from(value: PaletteWrapper) -> Self {
+        value.0
+    }
+}
+
 impl Default for PaletteWrapper {
     fn default() -> Self {
         Self(ANILINK_THEME.palette())
@@ -159,6 +171,7 @@ impl FromStr for Themes {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "AniLink" => Ok(Self::AniLink),
+            "Custom" => Ok(Self::Custom),
             "Light" => Ok(Self::Light),
             "Dark" => Ok(Self::Dark),
             "Dracula" => Ok(Self::Dracula),

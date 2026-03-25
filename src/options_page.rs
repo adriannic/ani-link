@@ -242,6 +242,7 @@ impl Page for OptionsPage {
                 }
                 Message::UpdateTheme(theme) => {
                     self.config.theme = theme;
+                    self.config.palette = self.theme().palette().into();
                     AppUpdate::None
                 }
                 Message::Background(channel) => {
@@ -314,6 +315,7 @@ impl Page for OptionsPage {
                         }
                         Options::Theme => {
                             self.config.theme = self.config.theme.next();
+                            self.config.palette = self.theme().palette().into();
                             AppUpdate::None
                         }
                         Options::Background(channel) => {
@@ -402,6 +404,7 @@ impl Page for OptionsPage {
                         }
                         Options::Theme => {
                             self.config.theme = self.config.theme.prev();
+                            self.config.palette = self.theme().palette().into();
                             AppUpdate::None
                         }
                         Options::Background(channel) => {
