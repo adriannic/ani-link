@@ -6,6 +6,7 @@ use std::{
 use crate::{
     app,
     config::Config,
+    image_query_state::ImageQueryState,
     page::{AppUpdate, Page},
     presets::{square_box, transparent_button_cond},
     scraper::anime::Anime,
@@ -144,6 +145,15 @@ impl Page for EpisodesPage {
                         AppUpdate::None
                     }
                     Key::Character("q" | "h") | Key::Named(ArrowLeft | Escape) => {
+                        let image_query = ImageQueryState::spawn(
+                            self.client.clone(),
+                            self.anime_list
+                                .first()
+                                .expect("No animes found")
+                                .image_url
+                                .clone(),
+                        );
+
                         AppUpdate::Page(Box::new(SearchPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
@@ -151,6 +161,7 @@ impl Page for EpisodesPage {
                             query: String::new(),
                             selected: 0,
                             filtered_list: mem::take(&mut self.anime_list),
+                            image: image_query,
                         }))
                     }
                     _ => AppUpdate::None,
@@ -224,10 +235,15 @@ impl EpisodesPage {
                     ".exe"
                 } else {
                     ""
-                }
+                },
             ));
 
             command
+                .args(if self.config.save_on_quit {
+                    vec!["--save-position-on-quit", "yes"]
+                } else {
+                    vec![]
+                })
                 .arg(mirror)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())

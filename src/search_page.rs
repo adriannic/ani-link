@@ -1,6 +1,6 @@
 use dirs::video_dir;
 use iced::{
-    Border, Element, Event, Font, Length, Padding, Task,
+    Border, Element, Event, Font, Length, Padding, Subscription, Task,
     alignment::{Horizontal, Vertical},
     event::{self, Status},
     keyboard::{
@@ -25,6 +25,7 @@ use std::{
     mem,
     process::{Command, Stdio},
     sync::{Arc, atomic::AtomicUsize},
+    time::Duration,
 };
 use tokio::runtime::Handle;
 
@@ -32,6 +33,7 @@ use crate::{
     app,
     config::Config,
     episodes_page::{EpisodesPage, WHITELIST},
+    image_query_state::ImageQueryState,
     list_query_state::ListQueryState,
     main_menu_page::{MainMenuPage, Selection},
     page::{AppUpdate, Page},
@@ -57,6 +59,7 @@ pub struct SearchPage {
     pub query: String,
     pub selected: usize,
     pub filtered_list: Vec<Anime>,
+    pub image: ImageQueryState,
 }
 
 impl Page for SearchPage {
@@ -134,13 +137,11 @@ impl Page for SearchPage {
                 .width(Length::FillPortion(2)),
                 square_box(container(
                     column![
-                        Scrollable::new(
+                        Scrollable::new(if let ImageQueryState::Obtained(bytes) = &self.image {
                             column![
                                 column![
-                                    image(image::Handle::from_bytes(
-                                        anime.get_image(self.config.scraper)
-                                    ))
-                                    .width(Length::Fill),
+                                    image(image::Handle::from_bytes(bytes.clone()))
+                                        .width(Length::Fill),
                                     text(&anime.names[0])
                                         .font(Font {
                                             weight: iced::font::Weight::Bold,
@@ -157,7 +158,9 @@ impl Page for SearchPage {
                             ]
                             .spacing(6)
                             .padding(6)
-                        )
+                        } else {
+                            column![].spacing(6).padding(6)
+                        })
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .direction(Direction::Vertical(Scrollbar::new()))
@@ -171,6 +174,7 @@ impl Page for SearchPage {
         .into()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: crate::app::Message) -> AppUpdate {
         if let app::Message::Search(message) = message {
             match message {
@@ -183,6 +187,14 @@ impl Page for SearchPage {
                 Message::Click(index) => {
                     if self.selected != index {
                         self.selected = index;
+                        self.image = ImageQueryState::spawn(
+                            self.client.clone(),
+                            self.filtered_list
+                                .get(index)
+                                .expect("No animes found")
+                                .image_url
+                                .clone(),
+                        );
                         return AppUpdate::None;
                     }
 
@@ -209,6 +221,14 @@ impl Page for SearchPage {
                     Key::Character("j") | Key::Named(ArrowDown) => {
                         if self.selected < self.filtered_list.len() - 1 {
                             self.selected += 1;
+                            self.image = ImageQueryState::spawn(
+                                self.client.clone(),
+                                self.filtered_list
+                                    .get(self.selected)
+                                    .expect("No animes found")
+                                    .image_url
+                                    .clone(),
+                            );
                             return AppUpdate::Task(self.scroll_to_index());
                         }
                         AppUpdate::None
@@ -216,6 +236,14 @@ impl Page for SearchPage {
                     Key::Character("k") | Key::Named(ArrowUp) => {
                         if self.selected > 0 {
                             self.selected -= 1;
+                            self.image = ImageQueryState::spawn(
+                                self.client.clone(),
+                                self.filtered_list
+                                    .get(self.selected)
+                                    .expect("No animes found")
+                                    .image_url
+                                    .clone(),
+                            );
                             return AppUpdate::Task(self.scroll_to_index());
                         }
                         AppUpdate::None
@@ -269,18 +297,24 @@ impl Page for SearchPage {
                     _ => AppUpdate::None,
                 },
             }
+        } else if matches!(message, app::Message::Update) {
+            self.image = mem::take(&mut self.image).get();
+            AppUpdate::None
         } else {
             AppUpdate::None
         }
     }
 
     fn subscription(&self) -> iced::Subscription<crate::app::Message> {
-        event::listen_with(move |event, status, _| match (event, status) {
-            (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
-                Some(app::Message::Search(Message::KeyPressed(key)))
-            }
-            _ => None,
-        })
+        Subscription::batch(vec![
+            event::listen_with(move |event, status, _| match (event, status) {
+                (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
+                    Some(app::Message::Search(Message::KeyPressed(key)))
+                }
+                _ => None,
+            }),
+            iced::time::every(Duration::from_millis(100)).map(|_| app::Message::Update),
+        ])
     }
 
     fn theme(&self) -> iced::Theme {
@@ -337,6 +371,14 @@ impl SearchPage {
         });
 
         self.filtered_list = result.into_iter().map(|(anime, _)| anime).collect();
+        self.image = ImageQueryState::spawn(
+            self.client.clone(),
+            self.filtered_list
+                .get(self.selected)
+                .expect("No animes found")
+                .image_url
+                .clone(),
+        );
     }
 
     fn download_anime(&self) {

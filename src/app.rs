@@ -13,7 +13,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    UpdateProgress,
+    Update,
     MainMenu(main_menu_page::Message),
     Options(options_page::Message),
     Search(search_page::Message),

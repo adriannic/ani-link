@@ -18,6 +18,7 @@ use strum_macros::EnumIter;
 use crate::{
     app,
     config::Config,
+    image_query_state::ImageQueryState,
     list_query_state::ListQueryState,
     options_page::{self, OptionsPage},
     page::{AppUpdate, Page},
@@ -83,7 +84,7 @@ impl Page for MainMenuPage {
                 progress.clone()
             }
         }
-        .load(Ordering::SeqCst);
+        .load(Ordering::Relaxed);
 
         let total = self.config.scraper.pages();
 
@@ -104,13 +105,13 @@ impl Page for MainMenuPage {
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                if progress == total {
-                    transparent_button("Buscar", matches!(self.selection, Selection::Search))
-                } else {
+                if self.waiting {
                     transparent_button(
-                        &format!("Buscar ({}%)", 100 * progress / total),
+                        &format!("Cargando ({progress}/{total})"),
                         matches!(self.selection, Selection::Search),
                     )
+                } else {
+                    transparent_button("Buscar", matches!(self.selection, Selection::Search))
                 }
                 .on_press(app::Message::MainMenu(Message::Select(Selection::Search)))
             )
@@ -129,6 +130,12 @@ impl Page for MainMenuPage {
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             Space::with_height(Length::Fill),
+            container(
+                text(format!("v{}", env!("CARGO_PKG_VERSION")))
+                    .color(self.config.theme().palette().primary)
+            )
+            .align_x(Horizontal::Center)
+            .width(Length::Fill),
             container(rich_text![
                 span("Subir:").color(self.config.theme().palette().text),
                 span(" ↑ K ").color(self.config.theme().palette().primary),
@@ -146,6 +153,7 @@ impl Page for MainMenuPage {
         .into()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: app::Message) -> AppUpdate {
         let mut change_selection = |selection| -> AppUpdate {
             match selection {
@@ -155,7 +163,7 @@ impl Page for MainMenuPage {
                         | ListQueryState::Obtained(_, progress) => progress.clone(),
                     };
 
-                    if progress.load(Ordering::SeqCst) != self.config.scraper.pages() {
+                    if progress.load(Ordering::Relaxed) != self.config.scraper.pages() {
                         self.waiting = true;
                         return AppUpdate::None;
                     }
@@ -172,6 +180,14 @@ impl Page for MainMenuPage {
                     };
 
                     let filtered_list = anime_list.clone();
+                    let image_query = ImageQueryState::spawn(
+                        self.client.clone(),
+                        anime_list
+                            .first()
+                            .expect("No animes found")
+                            .image_url
+                            .clone(),
+                    );
 
                     AppUpdate::Both((
                         Box::new(SearchPage {
@@ -181,6 +197,7 @@ impl Page for MainMenuPage {
                             query: String::new(),
                             selected: 0,
                             filtered_list,
+                            image: image_query,
                         }),
                         text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
                     ))
@@ -214,14 +231,14 @@ impl Page for MainMenuPage {
                     _ => AppUpdate::None,
                 },
             }
-        } else if matches!(message, app::Message::UpdateProgress) {
+        } else if matches!(message, app::Message::Update) {
             let progress = match &self.anime_list {
                 ListQueryState::Obtaining(_, progress) | ListQueryState::Obtained(_, progress) => {
                     progress.clone()
                 }
             };
 
-            if self.waiting && progress.load(Ordering::SeqCst) == self.config.scraper.pages() {
+            if self.waiting && progress.load(Ordering::Relaxed) == self.config.scraper.pages() {
                 let anime_list = mem::take(&mut self.anime_list);
 
                 let anime_list = match anime_list {
@@ -234,6 +251,14 @@ impl Page for MainMenuPage {
                 };
 
                 let filtered_list = anime_list.clone();
+                let image_query = ImageQueryState::spawn(
+                    self.client.clone(),
+                    anime_list
+                        .first()
+                        .expect("No animes found")
+                        .image_url
+                        .clone(),
+                );
 
                 AppUpdate::Both((
                     Box::new(SearchPage {
@@ -243,6 +268,7 @@ impl Page for MainMenuPage {
                         query: String::new(),
                         selected: 0,
                         filtered_list,
+                        image: image_query,
                     }),
                     text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
                 ))
@@ -256,7 +282,7 @@ impl Page for MainMenuPage {
 
     fn subscription(&self) -> iced::Subscription<app::Message> {
         let mut subscriptions =
-            vec![time::every(Duration::from_millis(100)).map(|_| app::Message::UpdateProgress)];
+            vec![time::every(Duration::from_millis(100)).map(|_| app::Message::Update)];
 
         if !self.waiting {
             subscriptions.push(event::listen_with(move |event, status, _| {

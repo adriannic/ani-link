@@ -62,7 +62,6 @@ impl Scraper for AnimeFlvScraper {
                     names: vec![title, slug.into()],
                     synopsis,
                     image_url: format!("https://www3.animeflv.net/uploads/animes/covers/{id}.jpg"),
-                    image_filename: format!("{id}.jpg"),
                 })
             })
             .collect::<Vec<_>>();

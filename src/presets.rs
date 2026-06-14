@@ -2,7 +2,9 @@ use colors_transform::{Color, Rgb};
 use iced::{
     Border, Element, Length,
     overlay::menu,
-    widget::{Button, Container, Space, button, column, container, pick_list, row, slider, text},
+    widget::{
+        Button, Container, Space, button, column, container, pick_list, row, slider, text, toggler,
+    },
 };
 use strum::IntoEnumIterator;
 
@@ -134,6 +136,24 @@ pub fn options_list<'a, T: IntoEnumIterator + ToString>(
                         },
                     }
                 })
+            ]
+        ]
+        .spacing(6),
+    )
+}
+
+pub fn options_tick<'a>(
+    name: &str,
+    selected: bool,
+    current: bool,
+    callback: impl Fn(bool) -> app::Message + 'a,
+) -> Container<'a, app::Message> {
+    Container::new(
+        column![
+            transparent_button(name, selected),
+            row![
+                Space::with_width(Length::Fixed(18.0)),
+                toggler(current).on_toggle(callback)
             ]
         ]
         .spacing(6),

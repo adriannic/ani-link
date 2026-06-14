@@ -20,7 +20,7 @@ use crate::{
     list_query_state::ListQueryState,
     main_menu_page::{self, MainMenuPage},
     page::{AppUpdate, Page},
-    presets::{options_list, options_slider, square_box},
+    presets::{options_list, options_slider, options_tick, square_box},
     scraper::ScraperImpl,
     themes::Themes,
 };
@@ -42,6 +42,7 @@ impl Default for Channel {
 #[derive(Debug, Clone)]
 pub enum Message {
     UpdateScraper(ScraperImpl),
+    UpdateSaveOnQuit(bool),
     UpdateTheme(Themes),
     Background(Channel),
     Text(Channel),
@@ -53,6 +54,7 @@ pub enum Message {
 pub enum Options {
     #[default]
     Scraper,
+    SaveOnQuit,
     Theme,
     Background(Channel),
     Text(Channel),
@@ -62,7 +64,8 @@ pub enum Options {
 impl Options {
     pub const fn next(self) -> Self {
         match self {
-            Self::Scraper => Self::Theme,
+            Self::Scraper => Self::SaveOnQuit,
+            Self::SaveOnQuit => Self::Theme,
             Self::Theme => Self::Background(Channel::Red(0.0)),
             Self::Background(Channel::Red(_)) => Self::Background(Channel::Green(0.0)),
             Self::Background(Channel::Green(_)) => Self::Background(Channel::Blue(0.0)),
@@ -82,7 +85,8 @@ impl Options {
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::Scraper | Self::Theme => Self::Scraper,
+            Self::Scraper | Self::SaveOnQuit => Self::Scraper,
+            Self::Theme => Self::SaveOnQuit,
             Self::Background(Channel::Red(_)) => Self::Theme,
             Self::Background(Channel::Green(_)) => Self::Background(Channel::Red(0.0)),
             Self::Background(Channel::Blue(_)) => Self::Background(Channel::Green(0.0)),
@@ -122,6 +126,12 @@ impl Page for OptionsPage {
                                 selected.parse::<ScraperImpl>().expect("Shouldn't happen"),
                             ))
                         }
+                    ),
+                    options_tick(
+                        "Guardar progreso al salir: ",
+                        matches!(self.selection, Options::SaveOnQuit),
+                        self.config.save_on_quit,
+                        |selected| { app::Message::Options(Message::UpdateSaveOnQuit(selected)) }
                     ),
                     options_list::<Themes>(
                         "Esquema de colores: ",
@@ -240,6 +250,10 @@ impl Page for OptionsPage {
                     self.config.scraper = scraper;
                     AppUpdate::None
                 }
+                Message::UpdateSaveOnQuit(selected) => {
+                    self.config.save_on_quit = selected;
+                    AppUpdate::None
+                }
                 Message::UpdateTheme(theme) => {
                     self.config.theme = theme;
                     self.config.palette = self.theme().palette().into();
@@ -311,6 +325,10 @@ impl Page for OptionsPage {
                     Key::Character("l") | Key::Named(ArrowRight) => match self.selection {
                         Options::Scraper => {
                             self.config.scraper = self.config.scraper.next();
+                            AppUpdate::None
+                        }
+                        Options::SaveOnQuit => {
+                            self.config.save_on_quit = !self.config.save_on_quit;
                             AppUpdate::None
                         }
                         Options::Theme => {
@@ -400,6 +418,10 @@ impl Page for OptionsPage {
                     Key::Character("h") | Key::Named(ArrowLeft) => match self.selection {
                         Options::Scraper => {
                             self.config.scraper = self.config.scraper.prev();
+                            AppUpdate::None
+                        }
+                        Options::SaveOnQuit => {
+                            self.config.save_on_quit = !self.config.save_on_quit;
                             AppUpdate::None
                         }
                         Options::Theme => {

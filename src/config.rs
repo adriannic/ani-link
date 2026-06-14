@@ -14,11 +14,23 @@ use crate::{
     themes::{PaletteWrapper, Themes},
 };
 
-#[derive(Serialize, Deserialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Config {
     pub scraper: ScraperImpl,
+    pub save_on_quit: bool,
     pub theme: Themes,
     pub palette: PaletteWrapper,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            scraper: ScraperImpl::default(),
+            save_on_quit: true,
+            theme: Themes::default(),
+            palette: PaletteWrapper::default(),
+        }
+    }
 }
 
 impl Config {

@@ -119,8 +119,9 @@ dependencies = [
 
 [[package]]
 name = "ani-link"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
+ "bytes",
  "colors-transform",
  "dirs 6.0.0",
  "figment",

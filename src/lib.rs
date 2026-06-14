@@ -1,6 +1,7 @@
 pub mod app;
 mod config;
 mod episodes_page;
+mod image_query_state;
 mod list_query_state;
 mod main_menu_page;
 mod options_page;

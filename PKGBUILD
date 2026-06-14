@@ -1,8 +1,8 @@
 # Mantainer: Adrián Nicolás <nicolas.aguilera.adrian@gmail.com>
 
 pkgname=ani-link
-pkgver=0.4.2
-pkgrel=2
+pkgver=0.4.3
+pkgrel=1
 pkgdesc="Anime scraper"
 arch=('x86_64')
 url="https://github.com/adriannic/ani-link"
