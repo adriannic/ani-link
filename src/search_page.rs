@@ -21,7 +21,7 @@ use reqwest::Client;
 use rust_fuzzy_search::fuzzy_compare;
 use std::{
     env::temp_dir,
-    fs::write,
+    fs::{create_dir_all, write},
     mem,
     process::{Command, Stdio},
     sync::{Arc, atomic::AtomicUsize},
@@ -484,6 +484,8 @@ impl SearchPage {
 
         let mut path = temp_dir();
         path.push("ani-link");
+        create_dir_all(path.clone()).expect("couldn't create tmp dir");
+
         path.push("playlist.txt");
 
         write(&path, viewable).expect("Couldn't create playlist file");
