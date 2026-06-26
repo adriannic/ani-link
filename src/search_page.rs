@@ -22,6 +22,8 @@ use notify_rust::Notification;
 use rayon::prelude::*;
 use reqwest::Client;
 use rust_fuzzy_search::fuzzy_compare;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{
     env::temp_dir,
     fs::{create_dir_all, write},
@@ -422,7 +424,7 @@ impl SearchPage {
                 .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
                 .collect_vec();
 
-            let success = viewable.iter().all(|mirror| {
+            let success = viewable.iter().any(|mirror| {
                 let mut command = Command::new(format!(
                     "yt-dlp{}",
                     if cfg!(target_os = "windows") {
@@ -433,6 +435,9 @@ impl SearchPage {
                 ));
 
                 let slug = anime.names[1].as_str();
+
+                #[cfg(target_os = "windows")]
+                command.creation_flags(0x08000000);
 
                 command
                     .arg(mirror)
@@ -452,7 +457,13 @@ impl SearchPage {
                     .is_ok()
             });
 
-            if !success {
+            if success {
+                Notification::new()
+                    .summary("Ani-link")
+                    .body(&format!("Episodio {episode} descargado correctamente"))
+                    .show()
+                    .unwrap();
+            } else {
                 Notification::new()
                     .summary("Ani-link")
                     .body(&format!("No se ha podido descargar el episodio {episode}"))

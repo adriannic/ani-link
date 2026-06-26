@@ -1,8 +1,8 @@
 # Mantainer: Adrián Nicolás <nicolas.aguilera.adrian@gmail.com>
 
 pkgname=ani-link
-pkgver=0.4.3
-pkgrel=2
+pkgver=0.4.4
+pkgrel=1
 pkgdesc="Anime scraper"
 arch=('x86_64')
 url="https://github.com/adriannic/ani-link"
@@ -10,7 +10,7 @@ makedepends=('rust')
 depends=('mpv' 'yt-dlp')
 optdepends=('syncplay: for syncplay support')
 source=()
-options=(!debug)
+options=(!debug !lto)
 
 build() {
   cd "$startdir"

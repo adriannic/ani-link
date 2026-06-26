@@ -1,3 +1,5 @@
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{
     mem,
     process::{Command, Stdio},
@@ -322,19 +324,19 @@ impl EpisodesPage {
             .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
             .collect_vec();
 
-        let success = viewable.iter().all(|mirror| {
-            Notification::new()
-                .summary("Ani-link")
-                .body(
-                    format!(
-                        r"Descargando episodio {episode} de {}, por favor, espera.",
-                        self.anime.names[0]
-                    )
-                    .as_str(),
+        Notification::new()
+            .summary("Ani-link")
+            .body(
+                format!(
+                    r"Descargando episodio {episode} de {}, por favor, espera.",
+                    self.anime.names[0]
                 )
-                .show()
-                .unwrap();
+                .as_str(),
+            )
+            .show()
+            .unwrap();
 
+        let success = viewable.iter().any(|mirror| {
             let mut command = Command::new(format!(
                 "yt-dlp{}",
                 if cfg!(target_os = "windows") {
@@ -345,6 +347,9 @@ impl EpisodesPage {
             ));
 
             let slug = self.anime.names[1].as_str();
+
+            #[cfg(target_os = "windows")]
+            command.creation_flags(0x08000000);
 
             command
                 .arg(mirror)
