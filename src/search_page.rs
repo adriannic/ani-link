@@ -8,8 +8,11 @@ use iced::{
         Key,
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
+    never,
     widget::{
-        self, Column, Scrollable, column, container, image, rich_text, row,
+        Column, Id, Scrollable, column, container, image,
+        operation::{focus, focus_next, snap_to},
+        rich_text, row,
         scrollable::{self, Direction, Scrollbar},
         span, text, text_input,
     },
@@ -71,7 +74,7 @@ impl Page for SearchPage {
             square_box(
                 column![
                     text_input("Buscar...", &self.query)
-                        .id(text_input::Id::new(SEARCH_BAR_ID))
+                        .id(Id::new(SEARCH_BAR_ID))
                         .style(move |theme: &iced::Theme, _| text_input::Style {
                             background: iced::Background::Color(theme.palette().background),
                             border: Border::default().width(0),
@@ -100,7 +103,7 @@ impl Page for SearchPage {
                                     )
                                 })
                             ))
-                            .id(scrollable::Id::new(SEARCH_SCROLLABLE_ID))
+                            .id(Id::new(SEARCH_SCROLLABLE_ID))
                             .width(Length::Fill)
                             .height(Length::Fill)
                             .direction(Direction::Vertical(Scrollbar::new()))
@@ -111,22 +114,25 @@ impl Page for SearchPage {
                             bottom: 3.0,
                             left: 6.0
                         }),
-                        container(rich_text![
-                            span("Subir:").color(self.config.theme().palette().text),
-                            span(" ↑ K ").color(self.config.theme().palette().primary),
-                            span(" Bajar:").color(self.config.theme().palette().text),
-                            span(" ↓ J ").color(self.config.theme().palette().primary),
-                            span(" Confirmar:").color(self.config.theme().palette().text),
-                            span(" → L Enter ").color(self.config.theme().palette().primary),
-                            span(" Buscar:").color(self.config.theme().palette().text),
-                            span(" F / ").color(self.config.theme().palette().primary),
-                            span(" Descargar:").color(self.config.theme().palette().text),
-                            span(" D ").color(self.config.theme().palette().primary),
-                            span(" Syncplay:").color(self.config.theme().palette().text),
-                            span(" S ").color(self.config.theme().palette().primary),
-                            span(" Salir:").color(self.config.theme().palette().text),
-                            span(" ← H Esc Q").color(self.config.theme().palette().primary),
-                        ])
+                        container(
+                            rich_text![
+                                span("Subir:").color(self.config.theme().palette().text),
+                                span(" ↑ K ").color(self.config.theme().palette().primary),
+                                span(" Bajar:").color(self.config.theme().palette().text),
+                                span(" ↓ J ").color(self.config.theme().palette().primary),
+                                span(" Confirmar:").color(self.config.theme().palette().text),
+                                span(" → L Enter ").color(self.config.theme().palette().primary),
+                                span(" Buscar:").color(self.config.theme().palette().text),
+                                span(" F / ").color(self.config.theme().palette().primary),
+                                span(" Descargar:").color(self.config.theme().palette().text),
+                                span(" D ").color(self.config.theme().palette().primary),
+                                span(" Syncplay:").color(self.config.theme().palette().text),
+                                span(" S ").color(self.config.theme().palette().primary),
+                                span(" Salir:").color(self.config.theme().palette().text),
+                                span(" ← H Esc Q").color(self.config.theme().palette().primary),
+                            ]
+                            .on_link_click(never)
+                        )
                         .align_x(Horizontal::Center)
                         .width(Length::Fill)
                         .clip(true),
@@ -137,11 +143,10 @@ impl Page for SearchPage {
                 .width(Length::FillPortion(2)),
                 square_box(container(
                     column![
-                        Scrollable::new(if let ImageQueryState::Obtained(bytes) = &self.image {
+                        Scrollable::new(if let ImageQueryState::Obtained(handle) = &self.image {
                             column![
                                 column![
-                                    image(image::Handle::from_bytes(bytes.clone()))
-                                        .width(Length::Fill),
+                                    image(handle).width(Length::Fill),
                                     text(&anime.names[0])
                                         .font(Font {
                                             weight: iced::font::Weight::Bold,
@@ -183,7 +188,7 @@ impl Page for SearchPage {
                     self.fuzzy();
                     AppUpdate::None
                 }
-                Message::Submit => AppUpdate::Task(widget::focus_next()),
+                Message::Submit => AppUpdate::Task(focus_next()),
                 Message::Click(index) => {
                     if self.selected != index {
                         self.selected = index;
@@ -270,7 +275,7 @@ impl Page for SearchPage {
                     Key::Character("f" | "/") => {
                         self.selected = 0;
                         AppUpdate::Task(Task::batch([
-                            text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
+                            focus(Id::new(SEARCH_BAR_ID)),
                             self.scroll_to_index(),
                         ]))
                     }
@@ -333,8 +338,8 @@ impl SearchPage {
         #[allow(clippy::cast_precision_loss)]
         let offset = self.selected as f32 / list_len as f32;
 
-        scrollable::snap_to(
-            scrollable::Id::new(SEARCH_SCROLLABLE_ID),
+        snap_to(
+            Id::new(SEARCH_SCROLLABLE_ID),
             scrollable::RelativeOffset {
                 x: 0.0,
                 y: offset.clamp(0.0, 1.0),

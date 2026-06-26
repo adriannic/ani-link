@@ -1,15 +1,11 @@
 use std::mem;
 
 use iced::{
-    Event, Length,
-    alignment::Horizontal,
-    event::{self, Status},
-    keyboard::{
+    Event, Length, alignment::Horizontal, event::{self, Status}, keyboard::{
         Event::KeyPressed,
         Key,
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
-    },
-    widget::{Space, column, container, rich_text, row, span},
+    }, never, widget::{Space, column, container, rich_text, row, span}
 };
 use reqwest::Client;
 use strum_macros::EnumIter;
@@ -218,9 +214,9 @@ impl Page for OptionsPage {
                 ]
                 .spacing(6)
                 .padding(6),
-                Space::with_width(Length::Fixed(18.0))
+                Space::new().width(Length::Fixed(18.0))
             ],
-            Space::with_height(Length::Fill),
+            Space::new().height(Length::Fill),
             container(rich_text![
                 span("Subir:").color(self.config.theme().palette().text),
                 span(" ↑ K ").color(self.config.theme().palette().primary),
@@ -234,10 +230,10 @@ impl Page for OptionsPage {
                 span(" Enter ").color(self.config.theme().palette().primary),
                 span(" Salir sin guardar:").color(self.config.theme().palette().text),
                 span(" Esc Q").color(self.config.theme().palette().primary),
-            ])
+            ].on_link_click(never))
             .align_x(Horizontal::Center)
             .width(Length::Fill),
-            Space::with_height(Length::Fixed(3.0)),
+            Space::new().height(Length::Fixed(3.0)),
         ])
         .into()
     }

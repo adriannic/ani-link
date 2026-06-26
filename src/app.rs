@@ -57,8 +57,8 @@ impl Default for App {
 impl App {
     #[allow(clippy::missing_errors_doc)]
     pub fn run() -> iced::Result {
-        iced::application("Ani-Link", Self::update, Self::view)
-            .theme(|app| app.page.theme())
+        iced::application(Self::default, Self::update, Self::view)
+            .theme(|app: &Self| app.page.theme())
             .subscription(Self::subscription)
             .transparent(true)
             .antialiasing(true)

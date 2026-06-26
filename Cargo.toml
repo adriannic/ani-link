@@ -27,22 +27,26 @@ style = "warn"
 pedantic = "warn"
 nursery = "warn"
 
+[target.'x86_64-pc-windows-gnu'.dependencies]
+libmpv2 = { version = "6.0.0", features = ["build_libmpv"] }
+
 [dependencies]
-bytes = "1.11.1"
+bytes = "1.12.0"
 colors-transform = "0.2.11"
 dirs = "6.0.0"
 figment = { version = "0.10.19", features = ["toml"] }
-iced = { version = "0.13.1", features = ["image", "advanced", "tokio"] }
-image = "0.25.9"
-itertools = "0.14.0"
-notify-rust = "4.12.0"
-rayon = "1.11.0"
-regex = "1.12.3"
-reqwest = { version = "0.12.28", features = ["cookies", "blocking"] }
+iced = { version = "0.14.0", features = ["image", "advanced", "tokio"] }
+image = "0.25.10"
+itertools = "0.15.0"
+libmpv2 = "6.0.0"
+notify-rust = "4.18.0"
+rayon = "1.12.0"
+regex = "1.12.4"
+reqwest = { version = "0.13.4", features = ["cookies", "blocking"] }
 rust-fuzzy-search = "0.1.1"
 serde = { version = "1.0.228", features = ["serde_derive"] }
 strum = "0.28.0"
 strum_macros = "0.28.0"
-time = "0.3.47"
-tokio = { version = "1.50.0", features = ["full"] }
-toml = "1.0.3"
+time = "0.3.51"
+tokio = { version = "1.52.3", features = ["full"] }
+toml = "1.1.2"

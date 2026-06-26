@@ -1,6 +1,6 @@
 use colors_transform::{Color, Rgb};
 use iced::{
-    Border, Element, Length,
+    Border, Element, Length, Shadow,
     overlay::menu,
     widget::{
         Button, Container, Space, button, column, container, pick_list, row, slider, text, toggler,
@@ -100,7 +100,7 @@ pub fn options_list<'a, T: IntoEnumIterator + ToString>(
         column![
             transparent_button(name, selected),
             row![
-                Space::with_width(Length::Fixed(18.0)),
+                Space::new().width(Length::Fixed(18.0)),
                 pick_list(
                     T::iter().map(|t| t.to_string()).collect::<Vec<_>>(),
                     current,
@@ -121,6 +121,7 @@ pub fn options_list<'a, T: IntoEnumIterator + ToString>(
                             .palette()
                             .background
                             .scale_alpha(1.0 / theme.palette().background.a),
+                        shadow: Shadow::default(),
                     }
                 })
                 .style(|theme: &iced::Theme, _| {
@@ -152,7 +153,7 @@ pub fn options_tick<'a>(
         column![
             transparent_button(name, selected),
             row![
-                Space::with_width(Length::Fixed(18.0)),
+                Space::new().width(Length::Fixed(18.0)),
                 toggler(current).on_toggle(callback)
             ]
         ]
@@ -173,7 +174,7 @@ pub fn options_slider<'a>(
                 selected
             ),
             row![
-                Space::with_width(Length::Fixed(18.0)),
+                Space::new().width(Length::Fixed(18.0)),
                 slider(0.0..=1.0, current, callback).step(1.0 / 255.0),
             ]
         ]

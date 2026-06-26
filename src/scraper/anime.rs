@@ -1,6 +1,6 @@
-use iced::advanced::image::Bytes;
 use std::fmt;
 
+use bytes::Bytes;
 use reqwest::blocking;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -18,34 +18,11 @@ impl fmt::Display for Anime {
 
 impl Anime {
     pub fn get_image(&self) -> Bytes {
-        // let mut path = temp_dir();
-        // path.push("ani-link");
-        // path.push(scraper.to_string());
-        //
-        // if !path.is_dir() {
-        //     create_dir_all(&path).expect("Couldn't create image dir");
-        // }
-        //
-        // path.push(
-        //     self.image_url
-        //         .split('/')
-        //         .next_back()
-        //         .expect("Error parsing image url"),
-        // );
-        //
-        // if path.is_file() {
-        //     return read(path).expect("Couldn't read image file").into();
-        // }
-
-        let image = blocking::Client::default()
+        blocking::Client::default()
             .get(&self.image_url)
             .send()
             .expect("Error sending request for image")
             .bytes()
-            .expect("Error converting image data to bytes");
-
-        // write(path, &image).expect("Couldn't save image");
-
-        image
+            .expect("Error converting image data to bytes")
     }
 }

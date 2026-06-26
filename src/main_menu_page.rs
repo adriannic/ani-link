@@ -9,8 +9,9 @@ use iced::{
         Key,
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
+    never,
     time::{self, Duration},
-    widget::{Space, column, container, rich_text, span, text, text_input},
+    widget::{Id, Space, column, container, operation::focus, rich_text, span, text},
 };
 use reqwest::Client;
 use strum_macros::EnumIter;
@@ -89,7 +90,7 @@ impl Page for MainMenuPage {
         let total = self.config.scraper.pages();
 
         square_box(column![
-            Space::with_height(Length::Fill),
+            Space::new().height(Length::Fill),
             container(
                 text("Ani-Link")
                     .font(Font {
@@ -129,26 +130,29 @@ impl Page for MainMenuPage {
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
-            Space::with_height(Length::Fill),
+            Space::new().height(Length::Fill),
             container(
                 text(format!("v{}", env!("CARGO_PKG_VERSION")))
                     .color(self.config.theme().palette().primary)
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
-            container(rich_text![
-                span("Subir:").color(self.config.theme().palette().text),
-                span(" ↑ K ").color(self.config.theme().palette().primary),
-                span(" Bajar:").color(self.config.theme().palette().text),
-                span(" ↓ J ").color(self.config.theme().palette().primary),
-                span(" Confirmar:").color(self.config.theme().palette().text),
-                span(" → L Enter ").color(self.config.theme().palette().primary),
-                span(" Salir:").color(self.config.theme().palette().text),
-                span(" ← H Esc").color(self.config.theme().palette().primary),
-            ])
+            container(
+                rich_text![
+                    span("Subir:").color(self.config.theme().palette().text),
+                    span(" ↑ K ").color(self.config.theme().palette().primary),
+                    span(" Bajar:").color(self.config.theme().palette().text),
+                    span(" ↓ J ").color(self.config.theme().palette().primary),
+                    span(" Confirmar:").color(self.config.theme().palette().text),
+                    span(" → L Enter ").color(self.config.theme().palette().primary),
+                    span(" Salir:").color(self.config.theme().palette().text),
+                    span(" ← H Esc").color(self.config.theme().palette().primary),
+                ]
+                .on_link_click(never)
+            )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
-            Space::with_height(Length::Fixed(3.0)),
+            Space::new().height(Length::Fixed(3.0)),
         ])
         .into()
     }
@@ -199,7 +203,7 @@ impl Page for MainMenuPage {
                             filtered_list,
                             image: image_query,
                         }),
-                        text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
+                        focus(Id::new(SEARCH_BAR_ID)),
                     ))
                 }
                 Selection::Options => AppUpdate::Page(Box::new(OptionsPage {
@@ -270,7 +274,7 @@ impl Page for MainMenuPage {
                         filtered_list,
                         image: image_query,
                     }),
-                    text_input::focus(text_input::Id::new(SEARCH_BAR_ID)),
+                    focus(Id::new(SEARCH_BAR_ID)),
                 ))
             } else {
                 AppUpdate::None

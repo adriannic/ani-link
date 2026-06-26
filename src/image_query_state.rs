@@ -5,16 +5,17 @@ use std::sync::{
 
 use bytes::Bytes;
 
+use iced::widget::image::Handle;
 use reqwest::Client;
-use tokio::{runtime::Handle, task::JoinHandle};
+use tokio::task::JoinHandle;
 pub enum ImageQueryState {
     Obtaining(JoinHandle<Bytes>, Arc<AtomicBool>),
-    Obtained(Bytes),
+    Obtained(Handle),
 }
 
 impl Default for ImageQueryState {
     fn default() -> Self {
-        Self::Obtained(vec![].into())
+        Self::Obtained(Handle::from_bytes(vec![]))
     }
 }
 
@@ -47,11 +48,11 @@ impl ImageQueryState {
         match self {
             Self::Obtaining(handle, done) => {
                 if done.load(Ordering::Relaxed) {
-                    Self::Obtained(
-                        Handle::current()
+                    Self::Obtained(Handle::from_bytes(
+                        tokio::runtime::Handle::current()
                             .block_on(handle)
                             .expect("Thread couldn't be joined"),
-                    )
+                    ))
                 } else {
                     Self::Obtaining(handle, done)
                 }

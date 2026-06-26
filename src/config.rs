@@ -61,7 +61,7 @@ impl Config {
 
     pub fn theme(&self) -> iced::Theme {
         if matches!(self.theme, Themes::Custom) {
-            iced::Theme::custom("custom".into(), self.palette.0)
+            iced::Theme::custom("custom", self.palette.0)
         } else {
             self.theme.into()
         }

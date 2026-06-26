@@ -1,6 +1,8 @@
 use std::{
     mem,
     process::{Command, Stdio},
+    sync::mpsc::channel,
+    thread,
 };
 
 use crate::{
@@ -12,7 +14,7 @@ use crate::{
     scraper::anime::Anime,
     search_page::SearchPage,
 };
-use dirs::video_dir;
+use dirs::{config_dir, state_dir, video_dir};
 use iced::{
     Element, Event, Length, Padding, Task,
     alignment::Horizontal,
@@ -22,13 +24,17 @@ use iced::{
         Key,
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
     },
+    never,
     widget::{
-        Column, Scrollable, column, container, rich_text,
+        Column, Id, Scrollable, column, container,
+        operation::snap_to,
+        rich_text,
         scrollable::{self, Direction, Scrollbar},
         span,
     },
 };
 use itertools::Itertools;
+use libmpv2::Mpv;
 use notify_rust::Notification;
 use reqwest::Client;
 use tokio::runtime::Handle;
@@ -68,7 +74,7 @@ impl Page for EpisodesPage {
                                 )
                             })
                         ))
-                        .id(scrollable::Id::new(EPISODES_SCROLLABLE_ID))
+                        .id(Id::new(EPISODES_SCROLLABLE_ID))
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .direction(Direction::Vertical(Scrollbar::new()))
@@ -79,20 +85,23 @@ impl Page for EpisodesPage {
                         bottom: 3.0,
                         left: 6.0
                     }),
-                    container(rich_text![
-                        span("Subir:").color(self.config.theme().palette().text),
-                        span(" ↑ K ").color(self.config.theme().palette().primary),
-                        span(" Bajar:").color(self.config.theme().palette().text),
-                        span(" ↓ J ").color(self.config.theme().palette().primary),
-                        span(" Confirmar:").color(self.config.theme().palette().text),
-                        span(" → L Enter ").color(self.config.theme().palette().primary),
-                        span(" Descargar:").color(self.config.theme().palette().text),
-                        span(" D ").color(self.config.theme().palette().primary),
-                        span(" Syncplay:").color(self.config.theme().palette().text),
-                        span(" S ").color(self.config.theme().palette().primary),
-                        span(" Salir:").color(self.config.theme().palette().text),
-                        span(" ← H Esc Q").color(self.config.theme().palette().primary),
-                    ])
+                    container(
+                        rich_text![
+                            span("Subir:").color(self.config.theme().palette().text),
+                            span(" ↑ K ").color(self.config.theme().palette().primary),
+                            span(" Bajar:").color(self.config.theme().palette().text),
+                            span(" ↓ J ").color(self.config.theme().palette().primary),
+                            span(" Confirmar:").color(self.config.theme().palette().text),
+                            span(" → L Enter ").color(self.config.theme().palette().primary),
+                            span(" Descargar:").color(self.config.theme().palette().text),
+                            span(" D ").color(self.config.theme().palette().primary),
+                            span(" Syncplay:").color(self.config.theme().palette().text),
+                            span(" S ").color(self.config.theme().palette().primary),
+                            span(" Salir:").color(self.config.theme().palette().text),
+                            span(" ← H Esc Q").color(self.config.theme().palette().primary),
+                        ]
+                        .on_link_click(never)
+                    )
                     .align_x(Horizontal::Center)
                     .width(Length::Fill),
                 ]
@@ -197,8 +206,8 @@ impl EpisodesPage {
         #[allow(clippy::cast_precision_loss)]
         let offset = self.selected as f32 / list_len as f32;
 
-        scrollable::snap_to(
-            scrollable::Id::new(EPISODES_SCROLLABLE_ID),
+        snap_to(
+            Id::new(EPISODES_SCROLLABLE_ID),
             scrollable::RelativeOffset {
                 x: 0.0,
                 y: offset.clamp(0.0, 1.0),
@@ -222,33 +231,71 @@ impl EpisodesPage {
             .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
             .collect_vec();
 
-        let success = viewable.iter().all(|mirror| {
+        let success = viewable.iter().all(|&mirror| {
             Notification::new()
                 .summary("Ani-link")
                 .body(format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str())
                 .show()
                 .unwrap();
 
-            let mut command = Command::new(format!(
-                "mpv{}",
-                if cfg!(target_os = "windows") {
-                    ".exe"
-                } else {
-                    ""
-                },
-            ));
+            let (tx, rx) = channel();
+            let mirror_clone = mirror.clone();
+            let save_on_quit = self.config.save_on_quit;
 
-            command
-                .args(if self.config.save_on_quit {
-                    vec!["--save-position-on-quit", "yes"]
-                } else {
-                    vec![]
-                })
-                .arg(mirror)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .is_ok()
+            thread::spawn(move || {
+                let mut sent = false;
+                let mirror = mirror_clone;
+                let mpv = Mpv::new().unwrap();
+
+                let mut watch_later = state_dir().or_else(config_dir).unwrap();
+                watch_later.push("mpv/watch_later");
+                let watch_later = watch_later.as_path().to_str().unwrap();
+
+                mpv.set_property("osc", true).unwrap();
+                mpv.set_property("watch-later-directory", watch_later)
+                    .unwrap();
+                mpv.set_property("input-default-bindings", true).unwrap();
+                mpv.set_property("force-window", true).unwrap();
+                mpv.set_property("keep-open", "no").unwrap();
+                mpv.set_property("resume-playback", "yes").unwrap();
+                mpv.set_property("idle", "no").unwrap();
+                mpv.set_property(
+                    "save-position-on-quit",
+                    if save_on_quit { "yes" } else { "no" },
+                )
+                .unwrap();
+                mpv.command("loadfile", &[&mirror, "replace"]).unwrap();
+                loop {
+                    if let Some(Ok(event)) = mpv.wait_event(-1.0) {
+                        match event {
+                            libmpv2::events::Event::EndFile(reason) => match reason {
+                                0 | 3 => break,
+                                4 if !sent => {
+                                    let _ = tx.send(false).is_ok();
+                                    break;
+                                }
+                                _ if !sent => {
+                                    let _ = tx.send(true).is_ok();
+                                    sent = true;
+                                }
+                                _ => {}
+                            },
+                            libmpv2::events::Event::PlaybackRestart if !sent => {
+                                let _ = tx.send(true).is_ok();
+                                sent = true;
+                            }
+                            libmpv2::events::Event::Shutdown if !sent => {
+                                let _ = tx.send(false).is_ok();
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                mpv.command("quit", &[]).unwrap();
+            });
+
+            rx.recv().unwrap()
         });
 
         if !success {

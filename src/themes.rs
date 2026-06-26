@@ -6,7 +6,7 @@ use strum_macros::EnumIter;
 
 pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
     iced::Theme::custom(
-        "anilink".into(),
+        "anilink",
         Palette {
             background: Color::from_rgba(
                 f32::from(0x03_u16) / 255.0,
@@ -18,6 +18,7 @@ pub static ANILINK_THEME: LazyLock<Theme> = LazyLock::new(|| {
             primary: color!(0xA4_9029), // #A49029
             success: color!(0x00_FF00), // #00FF00
             danger: color!(0xFF_0000),  // #FF0000
+            warning: color!(0xFF_8000), // #FF8000
         },
     )
 });
@@ -44,6 +45,8 @@ pub struct PaletteDef {
     pub success: Color,
     #[serde(with = "ColorDef")]
     pub danger: Color,
+    #[serde(with = "ColorDef")]
+    pub warning: Color,
 }
 
 #[derive(Clone, Debug, Copy, Serialize, Deserialize, PartialEq)]
