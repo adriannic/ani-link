@@ -1,6 +1,6 @@
 [package]
 name = "ani-link"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2024"
 license = "MIT"
 description = "A scraper I created just for fun."
@@ -31,6 +31,7 @@ nursery = "warn"
 libmpv2 = { version = "6.0.0", features = ["build_libmpv"] }
 
 [dependencies]
+atomic_float = "1.1.0"
 bytes = "1.12.0"
 colors-transform = "0.2.11"
 dirs = "6.0.0"

@@ -40,20 +40,21 @@ impl Scraper for AnimeAv1Scraper {
                 let client = client.clone();
                 let completed = progress.clone();
                 tokio::spawn(async move {
-                    let mut retries = 10;
-                    let response = loop {
-                        match timeout(Duration::from_millis(1500), client.get(&url).send()).await {
-                            Ok(response) => break response,
-                            Err(_) => {
-                                if retries > 0 {
-                                    retries -= 1;
-                                } else {
-                                    panic!("Max retries reached for {url}");
-                                }
-                            }
+                    let mut retries = 100;
+                    let body = loop {
+                        if let Ok(Ok(response)) =
+                            timeout(Duration::from_millis(1500), client.get(&url).send()).await
+                            && let Ok(body) = response.text().await
+                        {
+                            break body;
+                        }
+
+                        if retries > 0 {
+                            retries -= 1;
+                        } else {
+                            panic!("Max retries reached for {url}");
                         }
                     };
-                    let body = response.unwrap().text().await.unwrap();
                     completed.fetch_add(1, Ordering::Relaxed);
                     body
                 })

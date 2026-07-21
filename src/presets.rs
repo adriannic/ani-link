@@ -175,7 +175,7 @@ pub fn options_slider<'a>(
             ),
             row![
                 Space::new().width(Length::Fixed(18.0)),
-                slider(0.0..=1.0, current, callback).step(1.0 / 255.0),
+                slider(0.0..=1.0, current, callback).step(1.0_f32 / 255.0),
             ]
         ]
         .spacing(6),

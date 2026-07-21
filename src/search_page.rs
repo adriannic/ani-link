@@ -1,3 +1,4 @@
+use atomic_float::AtomicF32;
 use dirs::video_dir;
 use iced::{
     Border, Element, Event, Font, Length, Padding, Subscription, Task,
@@ -10,16 +11,17 @@ use iced::{
     },
     never,
     widget::{
-        Column, Id, Scrollable, column, container, image,
+        Column, Id, Scrollable, Space, column, container, image,
         operation::{focus, focus_next, snap_to},
-        rich_text, row,
+        progress_bar, rich_text, row,
         scrollable::{self, Direction, Scrollbar},
-        span, text, text_input,
+        span, stack, text, text_input,
     },
 };
 use itertools::Itertools;
 use notify_rust::Notification;
 use rayon::prelude::*;
+use regex::Regex;
 use reqwest::Client;
 use rust_fuzzy_search::fuzzy_compare;
 #[cfg(target_os = "windows")]
@@ -27,9 +29,14 @@ use std::os::windows::process::CommandExt;
 use std::{
     env::temp_dir,
     fs::{create_dir_all, write},
+    io::{BufRead, BufReader},
     mem,
     process::{Command, Stdio},
-    sync::{Arc, atomic::AtomicUsize},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    thread,
     time::Duration,
 };
 use tokio::runtime::Handle;
@@ -65,6 +72,7 @@ pub struct SearchPage {
     pub selected: usize,
     pub filtered_list: Vec<Anime>,
     pub image: ImageQueryState,
+    pub download_progress: Arc<(AtomicF32, AtomicF32, AtomicF32)>,
 }
 
 impl Page for SearchPage {
@@ -72,111 +80,156 @@ impl Page for SearchPage {
     fn view(&self) -> iced::Element<'_, crate::app::Message> {
         let selected = self.selected;
         let anime = &self.filtered_list[self.selected];
-        column![
-            square_box(
-                column![
-                    text_input("Buscar...", &self.query)
-                        .id(Id::new(SEARCH_BAR_ID))
-                        .style(move |theme: &iced::Theme, _| text_input::Style {
-                            background: iced::Background::Color(theme.palette().background),
-                            border: Border::default().width(0),
-                            icon: theme.palette().primary,
-                            placeholder: highlight(theme.palette().text, 20.0),
-                            value: theme.palette().text,
-                            selection: theme.palette().primary,
-                        })
-                        .on_input(|s| app::Message::Search(Message::Update(s)))
-                        .on_submit(app::Message::Search(Message::Submit))
-                ]
-                .spacing(3)
-                .padding(3)
-            )
-            .height(Length::Fixed(39.0)),
-            row![
+        let max = self.download_progress.0.load(Ordering::Relaxed);
+        let current = self.download_progress.1.load(Ordering::Relaxed);
+        let progress = self.download_progress.2.load(Ordering::Relaxed);
+        stack![
+            column![
                 square_box(
                     column![
-                        container(
-                            Scrollable::new(Column::with_children(
-                                self.filtered_list.iter().enumerate().map(|(i, anime)| {
-                                    let name = anime.names[0].clone();
-                                    Element::new(
-                                        transparent_button_cond(&name, || selected == i)
-                                            .on_press(app::Message::Search(Message::Click(i))),
-                                    )
-                                })
-                            ))
-                            .id(Id::new(SEARCH_SCROLLABLE_ID))
-                            .width(Length::Fill)
-                            .height(Length::Fill)
-                            .direction(Direction::Vertical(Scrollbar::new()))
-                        )
-                        .padding(Padding {
-                            top: 6.0,
-                            right: 6.0,
-                            bottom: 3.0,
-                            left: 6.0
-                        }),
-                        container(
-                            rich_text![
-                                span("Subir:").color(self.config.theme().palette().text),
-                                span(" ↑ K ").color(self.config.theme().palette().primary),
-                                span(" Bajar:").color(self.config.theme().palette().text),
-                                span(" ↓ J ").color(self.config.theme().palette().primary),
-                                span(" Confirmar:").color(self.config.theme().palette().text),
-                                span(" → L Enter ").color(self.config.theme().palette().primary),
-                                span(" Buscar:").color(self.config.theme().palette().text),
-                                span(" F / ").color(self.config.theme().palette().primary),
-                                span(" Descargar:").color(self.config.theme().palette().text),
-                                span(" D ").color(self.config.theme().palette().primary),
-                                span(" Syncplay:").color(self.config.theme().palette().text),
-                                span(" S ").color(self.config.theme().palette().primary),
-                                span(" Salir:").color(self.config.theme().palette().text),
-                                span(" ← H Esc Q").color(self.config.theme().palette().primary),
-                            ]
-                            .on_link_click(never)
-                        )
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fill)
-                        .clip(true),
+                        text_input("Buscar...", &self.query)
+                            .id(Id::new(SEARCH_BAR_ID))
+                            .style(move |theme: &iced::Theme, _| text_input::Style {
+                                background: iced::Background::Color(theme.palette().background),
+                                border: Border::default().width(0),
+                                icon: theme.palette().primary,
+                                placeholder: highlight(theme.palette().text, 20.0),
+                                value: theme.palette().text,
+                                selection: theme.palette().primary,
+                            })
+                            .on_input(|s| app::Message::Search(Message::Update(s)))
+                            .on_submit(app::Message::Search(Message::Submit))
                     ]
                     .spacing(3)
                     .padding(3)
                 )
-                .width(Length::FillPortion(2)),
-                square_box(container(
+                .height(Length::Fixed(39.0)),
+                row![
+                    square_box(
+                        column![
+                            container(
+                                Scrollable::new(Column::with_children(
+                                    self.filtered_list.iter().enumerate().map(|(i, anime)| {
+                                        let name = anime.names[0].clone();
+                                        Element::new(
+                                            transparent_button_cond(&name, || selected == i)
+                                                .on_press(app::Message::Search(Message::Click(i))),
+                                        )
+                                    })
+                                ))
+                                .id(Id::new(SEARCH_SCROLLABLE_ID))
+                                .width(Length::Fill)
+                                .height(Length::Fill)
+                                .direction(Direction::Vertical(Scrollbar::new()))
+                            )
+                            .padding(Padding {
+                                top: 6.0,
+                                right: 6.0,
+                                bottom: 3.0,
+                                left: 6.0
+                            }),
+                            container(
+                                rich_text![
+                                    span("Subir:").color(self.config.theme().palette().text),
+                                    span(" ↑ K ").color(self.config.theme().palette().primary),
+                                    span(" Bajar:").color(self.config.theme().palette().text),
+                                    span(" ↓ J ").color(self.config.theme().palette().primary),
+                                    span(" Confirmar:").color(self.config.theme().palette().text),
+                                    span(" → L Enter ")
+                                        .color(self.config.theme().palette().primary),
+                                    span(" Buscar:").color(self.config.theme().palette().text),
+                                    span(" F / ").color(self.config.theme().palette().primary),
+                                    span(" Descargar:").color(self.config.theme().palette().text),
+                                    span(" D ").color(self.config.theme().palette().primary),
+                                    span(" Syncplay:").color(self.config.theme().palette().text),
+                                    span(" S ").color(self.config.theme().palette().primary),
+                                    span(" Salir:").color(self.config.theme().palette().text),
+                                    span(" ← H Esc Q").color(self.config.theme().palette().primary),
+                                ]
+                                .on_link_click(never)
+                            )
+                            .align_x(Horizontal::Center)
+                            .width(Length::Fill)
+                            .clip(true),
+                        ]
+                        .spacing(3)
+                        .padding(3)
+                    )
+                    .width(Length::FillPortion(2)),
+                    square_box(container(
+                        column![
+                            Scrollable::new(
+                                if let ImageQueryState::Obtained(handle) = &self.image {
+                                    column![
+                                        column![
+                                            image(handle).width(Length::Fill),
+                                            text(&anime.names[0])
+                                                .font(Font {
+                                                    weight: iced::font::Weight::Bold,
+                                                    ..Font::DEFAULT
+                                                })
+                                                .style(|theme: &iced::Theme| text::Style {
+                                                    color: Some(theme.palette().primary)
+                                                })
+                                                .width(Length::Fill)
+                                                .align_x(Horizontal::Center)
+                                                .align_y(Vertical::Bottom)
+                                        ],
+                                        text(&anime.synopsis).width(Length::Fill)
+                                    ]
+                                    .spacing(6)
+                                    .padding(6)
+                                } else {
+                                    column![].spacing(6).padding(6)
+                                }
+                            )
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .direction(Direction::Vertical(Scrollbar::new()))
+                        ]
+                        .spacing(6)
+                        .padding(6)
+                    ))
+                    .width(Length::FillPortion(1))
+                ]
+            ],
+            if max == 0.0 {
+                row![]
+            } else {
+                row![
+                    Space::new().width(Length::FillPortion(1)),
                     column![
-                        Scrollable::new(if let ImageQueryState::Obtained(handle) = &self.image {
+                        Space::new().height(Length::Fill),
+                        square_box(
                             column![
-                                column![
-                                    image(handle).width(Length::Fill),
-                                    text(&anime.names[0])
-                                        .font(Font {
-                                            weight: iced::font::Weight::Bold,
-                                            ..Font::DEFAULT
-                                        })
-                                        .style(|theme: &iced::Theme| text::Style {
-                                            color: Some(theme.palette().primary)
-                                        })
-                                        .width(Length::Fill)
-                                        .align_x(Horizontal::Center)
-                                        .align_y(Vertical::Bottom)
-                                ],
-                                text(&anime.synopsis).width(Length::Fill)
+                                text(format!(
+                                    r#"Descargando episodio {} de "{}"..."#,
+                                    current, self.filtered_list[self.selected].names[0]
+                                )),
+                                text(format!("Episodio: {current}/{max}")),
+                                progress_bar(1.0..=max, current),
+                                text(format!("Progreso: {progress}%")),
+                                progress_bar(0.0..=100.0, progress),
                             ]
-                            .spacing(6)
-                            .padding(6)
-                        } else {
-                            column![].spacing(6).padding(6)
+                            .padding(10)
+                            .spacing(3)
+                        )
+                        .style(move |theme| {
+                            let mut background = theme.palette().background;
+                            background.a = 1.0;
+                            container::Style {
+                                background: Some(iced::Background::Color(background)),
+                                ..Default::default()
+                            }
                         })
                         .width(Length::Fill)
-                        .height(Length::Fill)
-                        .direction(Direction::Vertical(Scrollbar::new()))
+                        .height(Length::Shrink),
+                        Space::new().height(Length::Fill)
                     ]
-                    .spacing(6)
-                    .padding(6)
-                ))
-                .width(Length::FillPortion(1))
-            ]
+                    .width(Length::FillPortion(2)),
+                    Space::new().width(Length::FillPortion(1)),
+                ]
+            }
         ]
         .into()
     }
@@ -192,6 +245,10 @@ impl Page for SearchPage {
                 }
                 Message::Submit => AppUpdate::Task(focus_next()),
                 Message::Click(index) => {
+                    if self.download_progress.0.load(Ordering::Relaxed) != 0.0 {
+                        return AppUpdate::None;
+                    }
+
                     if self.selected != index {
                         self.selected = index;
                         self.image = ImageQueryState::spawn(
@@ -222,6 +279,7 @@ impl Page for SearchPage {
                         anime_list: mem::take(&mut self.anime_list),
                         anime: anime.clone(),
                         episodes,
+                        download_progress: Arc::new(AtomicF32::new(f32::NAN)),
                     }))
                 }
                 Message::KeyPressed(key) => match key.as_ref() {
@@ -272,6 +330,7 @@ impl Page for SearchPage {
                             anime_list: mem::take(&mut self.anime_list),
                             anime: anime.clone(),
                             episodes,
+                            download_progress: Arc::new(AtomicF32::new(f32::NAN)),
                         }))
                     }
                     Key::Character("f" | "/") => {
@@ -313,15 +372,21 @@ impl Page for SearchPage {
     }
 
     fn subscription(&self) -> iced::Subscription<crate::app::Message> {
-        Subscription::batch(vec![
-            event::listen_with(move |event, status, _| match (event, status) {
-                (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
-                    Some(app::Message::Search(Message::KeyPressed(key)))
+        let mut subscriptions =
+            vec![iced::time::every(Duration::from_millis(100)).map(|_| app::Message::Update)];
+
+        if self.download_progress.0.load(Ordering::Relaxed) == 0.0 {
+            subscriptions.push(event::listen_with(move |event, status, _| {
+                match (event, status) {
+                    (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
+                        Some(app::Message::Search(Message::KeyPressed(key)))
+                    }
+                    _ => None,
                 }
-                _ => None,
-            }),
-            iced::time::every(Duration::from_millis(100)).map(|_| app::Message::Update),
-        ])
+            }));
+        }
+
+        Subscription::batch(subscriptions)
     }
 
     fn theme(&self) -> iced::Theme {
@@ -388,8 +453,9 @@ impl SearchPage {
         );
     }
 
+    #[allow(clippy::too_many_lines)]
     fn download_anime(&self) {
-        let anime = &self.filtered_list[self.selected];
+        let anime = self.filtered_list[self.selected].clone();
         let episodes = Handle::current()
             .block_on(
                 self.config
@@ -410,67 +476,106 @@ impl SearchPage {
             .show()
             .unwrap();
 
-        for episode in episodes {
-            let mirrors = Handle::current()
-                .block_on(self.config.scraper.try_get_mirrors(
-                    &self.client,
-                    &anime.names[1],
-                    episode,
-                ))
-                .expect("Couldn't get mirrors");
+        let client = self.client.clone();
+        let scraper = self.config.scraper;
+        let mirrors = episodes
+            .iter()
+            .map(|&episode| {
+                Handle::current()
+                    .block_on(scraper.try_get_mirrors(&client, &anime.names[1], episode))
+                    .expect("Couldn't get mirrors")
+            })
+            .collect_vec();
 
-            let viewable = mirrors
-                .iter()
-                .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
-                .collect_vec();
+        let download_counters = self.download_progress.clone();
 
-            let success = viewable.iter().any(|mirror| {
-                let mut command = Command::new(format!(
-                    "yt-dlp{}",
-                    if cfg!(target_os = "windows") {
-                        ".exe"
-                    } else {
-                        ""
+        #[allow(clippy::cast_precision_loss)]
+        download_counters
+            .0
+            .store(episodes.len() as f32, Ordering::Relaxed);
+        download_counters.1.store(1.0, Ordering::Relaxed);
+
+        thread::spawn(move || {
+            let progress_re = Regex::new(r"([0-9.].*)%").unwrap();
+
+            for (episode, mirrors) in episodes.iter().zip(mirrors.iter()) {
+                download_counters.2.store(0.0, Ordering::Relaxed);
+                let viewable = mirrors
+                    .iter()
+                    .filter(|&mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+                    .collect_vec();
+
+                let success = viewable.iter().any(|mirror| {
+                    let mut command = Command::new(format!(
+                        "yt-dlp{}",
+                        if cfg!(target_os = "windows") {
+                            ".exe"
+                        } else {
+                            ""
+                        }
+                    ));
+
+                    let slug = anime.names[1].as_str();
+
+                    #[cfg(target_os = "windows")]
+                    command.creation_flags(0x08000000);
+
+                    let mut process = command
+                        .arg(mirror)
+                        .arg("--no-check-certificates")
+                        .arg("--newline")
+                        .arg("--output")
+                        .arg(format!(
+                            "{}/ani-link/{slug}/{slug}-{episode}.%(ext)s",
+                            video_dir()
+                                .expect("Video path not found")
+                                .into_os_string()
+                                .into_string()
+                                .expect("Video path could not be converted to string"),
+                        ))
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .spawn()
+                        .expect("couldn't run yt-dlp");
+
+                    let stdout = process.stdout.as_mut().unwrap();
+                    let reader = BufReader::new(stdout);
+
+                    for line in reader.lines() {
+                        let line = line.unwrap();
+                        let maybe_progress = progress_re.captures_iter(&line).find_map(|c| {
+                            let progress = c.get(1)?.as_str();
+                            progress.parse::<f32>().ok()
+                        });
+
+                        if let Some(progress) = maybe_progress {
+                            download_counters.2.store(progress, Ordering::Relaxed);
+                        }
                     }
-                ));
 
-                let slug = anime.names[1].as_str();
+                    process.wait().is_ok()
+                });
 
-                #[cfg(target_os = "windows")]
-                command.creation_flags(0x08000000);
+                if success {
+                    Notification::new()
+                        .summary("Ani-link")
+                        .body(&format!("Episodio {episode} descargado correctamente"))
+                        .show()
+                        .unwrap();
+                } else {
+                    Notification::new()
+                        .summary("Ani-link")
+                        .body(&format!("No se ha podido descargar el episodio {episode}"))
+                        .show()
+                        .unwrap();
+                }
 
-                command
-                    .arg(mirror)
-                    .arg("--no-check-certificates")
-                    .arg("--output")
-                    .arg(format!(
-                        "{}/ani-link/{slug}/{slug}-{episode}.%(ext)s",
-                        video_dir()
-                            .expect("Video path not found")
-                            .into_os_string()
-                            .into_string()
-                            .expect("Video path could not be converted to string"),
-                    ))
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .spawn()
-                    .is_ok()
-            });
-
-            if success {
-                Notification::new()
-                    .summary("Ani-link")
-                    .body(&format!("Episodio {episode} descargado correctamente"))
-                    .show()
-                    .unwrap();
-            } else {
-                Notification::new()
-                    .summary("Ani-link")
-                    .body(&format!("No se ha podido descargar el episodio {episode}"))
-                    .show()
-                    .unwrap();
+                download_counters.1.fetch_add(1.0, Ordering::Relaxed);
             }
-        }
+            download_counters.0.store(0.0, Ordering::Relaxed);
+            download_counters.1.store(0.0, Ordering::Relaxed);
+            download_counters.2.store(f32::NAN, Ordering::Relaxed);
+        });
     }
 
     fn stream_anime(&self) {
