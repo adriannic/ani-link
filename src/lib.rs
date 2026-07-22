@@ -1,5 +1,6 @@
 pub mod app;
 mod config;
+mod download;
 mod episodes_page;
 mod image_query_state;
 mod list_query_state;

@@ -1,24 +1,21 @@
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
 use std::{
-    io::{BufRead, BufReader},
     mem,
     process::{Command, Stdio},
-    sync::{Arc, atomic::Ordering, mpsc::channel},
+    sync::mpsc::channel,
     thread,
 };
 
 use crate::{
     app,
     config::Config,
+    download::DownloadToken,
     image_query_state::ImageQueryState,
     page::{AppUpdate, Page},
     presets::{square_box, transparent_button_cond},
     scraper::anime::Anime,
     search_page::SearchPage,
 };
-use atomic_float::AtomicF32;
-use dirs::{config_dir, state_dir, video_dir};
+use dirs::{config_dir, state_dir};
 use iced::{
     Element, Event, Length, Padding, Subscription, Task,
     alignment::Horizontal,
@@ -31,17 +28,16 @@ use iced::{
     never,
     time::{self, Duration},
     widget::{
-        Column, Id, Scrollable, Space, column, container,
+        Column, Id, Scrollable, column, container,
         operation::snap_to,
-        progress_bar, rich_text, row,
+        rich_text,
         scrollable::{self, Direction, Scrollbar},
-        span, stack, text,
+        span,
     },
 };
 use itertools::Itertools;
 use libmpv2::Mpv;
 use notify_rust::Notification;
-use regex::Regex;
 use reqwest::Client;
 use tokio::runtime::Handle;
 
@@ -57,103 +53,66 @@ pub enum Message {
 pub struct EpisodesPage {
     pub config: Config,
     pub client: Client,
+    pub search_query: String,
+    pub search_selected: usize,
     pub selected: usize,
     pub anime_list: Vec<Anime>,
     pub anime: Anime,
     pub episodes: Vec<f64>,
-    pub download_progress: Arc<AtomicF32>,
 }
 
 impl Page for EpisodesPage {
     fn view(&self) -> iced::Element<'_, crate::app::Message> {
         let selected = self.selected;
-        let progress = self.download_progress.load(Ordering::Relaxed);
-        stack![
-            column![
-                square_box(
-                    column![
-                        container(
-                            Scrollable::new(Column::with_children(
-                                self.episodes.iter().enumerate().map(|(i, episode)| {
-                                    Element::new(
-                                        transparent_button_cond(&format!("{episode}"), || {
-                                            selected == i
-                                        })
-                                        .on_press(app::Message::Episodes(Message::Click(i))),
-                                    )
-                                })
-                            ))
-                            .id(Id::new(EPISODES_SCROLLABLE_ID))
-                            .width(Length::Fill)
-                            .height(Length::Fill)
-                            .direction(Direction::Vertical(Scrollbar::new()))
-                        )
-                        .padding(Padding {
-                            top: 6.0,
-                            right: 6.0,
-                            bottom: 3.0,
-                            left: 6.0
-                        }),
-                        container(
-                            rich_text![
-                                span("Subir:").color(self.config.theme().palette().text),
-                                span(" ↑ K ").color(self.config.theme().palette().primary),
-                                span(" Bajar:").color(self.config.theme().palette().text),
-                                span(" ↓ J ").color(self.config.theme().palette().primary),
-                                span(" Confirmar:").color(self.config.theme().palette().text),
-                                span(" → L Enter ").color(self.config.theme().palette().primary),
-                                span(" Descargar:").color(self.config.theme().palette().text),
-                                span(" D ").color(self.config.theme().palette().primary),
-                                span(" Syncplay:").color(self.config.theme().palette().text),
-                                span(" S ").color(self.config.theme().palette().primary),
-                                span(" Salir:").color(self.config.theme().palette().text),
-                                span(" ← H Esc Q").color(self.config.theme().palette().primary),
-                            ]
-                            .on_link_click(never)
-                        )
-                        .align_x(Horizontal::Center)
-                        .width(Length::Fill),
-                    ]
-                    .spacing(3)
-                    .padding(3)
-                )
-                .width(Length::Fill),
-            ],
-            if self.download_progress.load(Ordering::Relaxed).is_nan() {
-                row![]
-            } else {
-                row![
-                    Space::new().width(Length::FillPortion(1)),
-                    column![
-                        Space::new().height(Length::Fill),
-                        square_box(
-                            column![
-                                text(format!(
-                                    r#"Descargando episodio {} de "{}"..."#,
-                                    self.episodes[self.selected], self.anime.names[0]
-                                )),
-                                text(format!("Progreso: {progress}%")),
-                                progress_bar(0.0..=100.0, progress),
-                            ]
-                            .padding(10)
-                            .spacing(3)
-                        )
-                        .style(move |theme| {
-                            let mut background = theme.palette().background;
-                            background.a = 1.0;
-                            container::Style {
-                                background: Some(iced::Background::Color(background)),
-                                ..Default::default()
-                            }
-                        })
+        column![
+            square_box(
+                column![
+                    container(
+                        Scrollable::new(Column::with_children(
+                            self.episodes.iter().enumerate().map(|(i, episode)| {
+                                Element::new(
+                                    transparent_button_cond(&format!("{episode}"), || {
+                                        selected == i
+                                    })
+                                    .on_press(app::Message::Episodes(Message::Click(i))),
+                                )
+                            })
+                        ))
+                        .id(Id::new(EPISODES_SCROLLABLE_ID))
                         .width(Length::Fill)
-                        .height(Length::Shrink),
-                        Space::new().height(Length::Fill)
-                    ]
-                    .width(Length::FillPortion(2)),
-                    Space::new().width(Length::FillPortion(1)),
+                        .height(Length::Fill)
+                        .direction(Direction::Vertical(Scrollbar::new()))
+                    )
+                    .padding(Padding {
+                        top: 6.0,
+                        right: 6.0,
+                        bottom: 3.0,
+                        left: 6.0
+                    }),
+                    container(
+                        rich_text![
+                            span("Subir:").color(self.config.theme().palette().text),
+                            span(" ↑ K ").color(self.config.theme().palette().primary),
+                            span(" Bajar:").color(self.config.theme().palette().text),
+                            span(" ↓ J ").color(self.config.theme().palette().primary),
+                            span(" Confirmar:").color(self.config.theme().palette().text),
+                            span(" → L Enter ").color(self.config.theme().palette().primary),
+                            span(" Descargar:").color(self.config.theme().palette().text),
+                            span(" D ").color(self.config.theme().palette().primary),
+                            span(" Syncplay:").color(self.config.theme().palette().text),
+                            span(" S ").color(self.config.theme().palette().primary),
+                            span(" Salir:").color(self.config.theme().palette().text),
+                            span(" ← H Esc Q").color(self.config.theme().palette().primary),
+                        ]
+                        .on_link_click(never)
+                    )
+                    .align_x(Horizontal::Center)
+                    .width(Length::Fill),
                 ]
-            }
+                .spacing(3)
+                .padding(3)
+            )
+            .width(Length::Fill),
         ]
         .into()
     }
@@ -162,10 +121,6 @@ impl Page for EpisodesPage {
         if let app::Message::Episodes(message) = message {
             match message {
                 Message::Click(index) => {
-                    if self.download_progress.load(Ordering::Relaxed).is_nan() {
-                        return AppUpdate::None;
-                    }
-
                     if self.selected != index {
                         self.selected = index;
                         return AppUpdate::None;
@@ -195,8 +150,26 @@ impl Page for EpisodesPage {
                         AppUpdate::None
                     }
                     Key::Character("d") => {
-                        self.download_episode();
-                        AppUpdate::None
+                        let name = self.anime.names[0].clone();
+                        let slug = self.anime.names[1].clone();
+                        let episode = self.episodes[self.selected];
+
+                        let _ = Notification::new()
+                            .summary("Ani-link")
+                            .body(format!(r"Añadiendo episodio {episode} de {name} a la cola de descargas...").as_str())
+                            .show()
+                            .is_ok();
+
+                        AppUpdate::Task(Task::perform(
+                            async move {
+                                DownloadToken {
+                                    name,
+                                    slug,
+                                    episode,
+                                }
+                            },
+                            |token| app::Message::Download(vec![token]),
+                        ))
                     }
                     Key::Character("s") => {
                         self.stream_episode();
@@ -212,20 +185,19 @@ impl Page for EpisodesPage {
                                 .clone(),
                         );
 
-                        AppUpdate::Page(Box::new(SearchPage {
+                        let mut page = SearchPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
                             anime_list: self.anime_list.clone(),
-                            query: String::new(),
-                            selected: 0,
+                            query: mem::take(&mut self.search_query),
+                            selected: self.search_selected,
                             filtered_list: mem::take(&mut self.anime_list),
                             image: image_query,
-                            download_progress: Arc::new((
-                                AtomicF32::new(0.0),
-                                AtomicF32::new(0.0),
-                                AtomicF32::new(f32::NAN),
-                            )),
-                        }))
+                        };
+
+                        page.fuzzy();
+
+                        AppUpdate::Page(Box::new(page))
                     }
                     _ => AppUpdate::None,
                 },
@@ -236,20 +208,15 @@ impl Page for EpisodesPage {
     }
 
     fn subscription(&self) -> iced::Subscription<crate::app::Message> {
-        let mut subscriptions =
-            vec![time::every(Duration::from_millis(100)).map(|_| app::Message::Update)];
-
-        if self.download_progress.load(Ordering::Relaxed).is_nan() {
-            subscriptions.push(event::listen_with(move |event, status, _| {
-                match (event, status) {
-                    (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
-                        Some(app::Message::Episodes(Message::KeyPressed(key)))
-                    }
-                    _ => None,
+        Subscription::batch(vec![
+            time::every(Duration::from_millis(100)).map(|_| app::Message::Update),
+            event::listen_with(move |event, status, _| match (event, status) {
+                (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
+                    Some(app::Message::Episodes(Message::KeyPressed(key)))
                 }
-            }));
-        }
-        Subscription::batch(subscriptions)
+                _ => None,
+            }),
+        ])
     }
 
     fn theme(&self) -> iced::Theme {
@@ -294,11 +261,11 @@ impl EpisodesPage {
             .collect_vec();
 
         let success = viewable.iter().all(|&mirror| {
-            Notification::new()
+            let _ = Notification::new()
                 .summary("Ani-link")
                 .body(format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str())
                 .show()
-                .unwrap();
+                .is_ok();
 
             let (tx, rx) = channel();
             let mirror_clone = mirror.clone();
@@ -361,111 +328,12 @@ impl EpisodesPage {
         });
 
         if !success {
-            Notification::new()
+            let _ = Notification::new()
                 .summary("Ani-link")
                 .body("No se ha podido abrir mpv")
                 .show()
-                .unwrap();
+                .is_ok();
         }
-    }
-
-    fn download_episode(&self) {
-        let episode = self.episodes[self.selected];
-        let mirrors = Handle::current()
-            .block_on(self.config.scraper.try_get_mirrors(
-                &self.client,
-                &self.anime.names[1],
-                episode,
-            ))
-            .expect("Couldn't get mirrors");
-
-        let viewable = mirrors
-            .into_iter()
-            .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
-            .collect_vec();
-
-        let name = self.anime.names[0].clone();
-        let slug = self.anime.names[1].clone();
-
-        let progress_counter = self.download_progress.clone();
-
-        thread::spawn(move || {
-            progress_counter.store(0.0, Ordering::Relaxed);
-            Notification::new()
-                .summary("Ani-link")
-                .body(
-                    format!(r"Descargando episodio {episode} de {name}, por favor, espera.")
-                        .as_str(),
-                )
-                .show()
-                .unwrap();
-
-            let success = viewable.into_iter().any(|mirror| {
-                let mut command = Command::new(format!(
-                    "yt-dlp{}",
-                    if cfg!(target_os = "windows") {
-                        ".exe"
-                    } else {
-                        ""
-                    }
-                ));
-
-                #[cfg(target_os = "windows")]
-                command.creation_flags(0x08000000);
-
-                let mut process = command
-                    .arg(mirror)
-                    .arg("--no-check-certificates")
-                    .arg("--newline")
-                    .arg("--output")
-                    .arg(format!(
-                        "{}/ani-link/{slug}/{slug}-{episode}.%(ext)s",
-                        video_dir()
-                            .expect("Video path not found")
-                            .into_os_string()
-                            .into_string()
-                            .expect("Video path could not be converted to string"),
-                    ))
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::null())
-                    .spawn()
-                    .expect("couldn't run yt-dlp");
-
-                let stdout = process.stdout.as_mut().unwrap();
-                let reader = BufReader::new(stdout);
-
-                let progress_re = Regex::new(r"([0-9.].*)%").unwrap();
-                for line in reader.lines() {
-                    let line = line.unwrap();
-                    let maybe_progress = progress_re.captures_iter(&line).find_map(|c| {
-                        let progress = c.get(1)?.as_str();
-                        progress.parse::<f32>().ok()
-                    });
-
-                    if let Some(progress) = maybe_progress {
-                        progress_counter.store(progress, Ordering::Relaxed);
-                    }
-                }
-
-                process.wait().is_ok()
-            });
-
-            if success {
-                Notification::new()
-                    .summary("Ani-link")
-                    .body(&format!("Episodio {episode} descargado correctamente"))
-                    .show()
-                    .unwrap();
-            } else {
-                Notification::new()
-                    .summary("Ani-link")
-                    .body(&format!("No se ha podido descargar el episodio {episode}"))
-                    .show()
-                    .unwrap();
-            }
-
-            progress_counter.store(f32::NAN, Ordering::Relaxed);
-        });
     }
 
     fn stream_episode(&self) {
@@ -502,11 +370,11 @@ impl EpisodesPage {
         });
 
         if !success {
-            Notification::new()
+            let _ = Notification::new()
                 .summary("Ani-link")
                 .body("No se ha podido abrir syncplay")
                 .show()
-                .unwrap();
+                .is_ok();
         }
     }
 }

@@ -1,10 +1,5 @@
-use std::{
-    fmt, mem,
-    process::exit,
-    sync::{Arc, atomic::Ordering},
-};
+use std::{fmt, mem, process::exit, sync::atomic::Ordering};
 
-use atomic_float::AtomicF32;
 use iced::{
     Event, Font, Length, Subscription,
     alignment::Horizontal,
@@ -207,11 +202,6 @@ impl Page for MainMenuPage {
                             selected: 0,
                             filtered_list,
                             image: image_query,
-                            download_progress: Arc::new((
-                                AtomicF32::new(0.0),
-                                AtomicF32::new(0.0),
-                                AtomicF32::new(f32::NAN),
-                            )),
                         }),
                         focus(Id::new(SEARCH_BAR_ID)),
                     ))
@@ -283,11 +273,6 @@ impl Page for MainMenuPage {
                         selected: 0,
                         filtered_list,
                         image: image_query,
-                        download_progress: Arc::new((
-                            AtomicF32::new(0.0),
-                            AtomicF32::new(0.0),
-                            AtomicF32::new(f32::NAN),
-                        )),
                     }),
                     focus(Id::new(SEARCH_BAR_ID)),
                 ))

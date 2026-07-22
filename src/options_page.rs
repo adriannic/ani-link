@@ -1,11 +1,16 @@
 use std::mem;
 
 use iced::{
-    Event, Length, alignment::Horizontal, event::{self, Status}, keyboard::{
+    Event, Length,
+    alignment::Horizontal,
+    event::{self, Status},
+    keyboard::{
         Event::KeyPressed,
         Key,
         key::Named::{ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Enter, Escape},
-    }, never, widget::{Space, column, container, rich_text, row, span}
+    },
+    never,
+    widget::{Space, column, container, rich_text, row, span},
 };
 use reqwest::Client;
 use strum_macros::EnumIter;
@@ -217,20 +222,23 @@ impl Page for OptionsPage {
                 Space::new().width(Length::Fixed(18.0))
             ],
             Space::new().height(Length::Fill),
-            container(rich_text![
-                span("Subir:").color(self.config.theme().palette().text),
-                span(" ↑ K ").color(self.config.theme().palette().primary),
-                span(" Bajar:").color(self.config.theme().palette().text),
-                span(" ↓ J ").color(self.config.theme().palette().primary),
-                span(" Siguiente:").color(self.config.theme().palette().text),
-                span(" → L ").color(self.config.theme().palette().primary),
-                span(" Anterior:").color(self.config.theme().palette().text),
-                span(" ← H ").color(self.config.theme().palette().primary),
-                span(" Guardar:").color(self.config.theme().palette().text),
-                span(" Enter ").color(self.config.theme().palette().primary),
-                span(" Salir sin guardar:").color(self.config.theme().palette().text),
-                span(" Esc Q").color(self.config.theme().palette().primary),
-            ].on_link_click(never))
+            container(
+                rich_text![
+                    span("Subir:").color(self.config.theme().palette().text),
+                    span(" ↑ K ").color(self.config.theme().palette().primary),
+                    span(" Bajar:").color(self.config.theme().palette().text),
+                    span(" ↓ J ").color(self.config.theme().palette().primary),
+                    span(" Siguiente:").color(self.config.theme().palette().text),
+                    span(" → L ").color(self.config.theme().palette().primary),
+                    span(" Anterior:").color(self.config.theme().palette().text),
+                    span(" ← H ").color(self.config.theme().palette().primary),
+                    span(" Guardar:").color(self.config.theme().palette().text),
+                    span(" Enter ").color(self.config.theme().palette().primary),
+                    span(" Salir sin guardar:").color(self.config.theme().palette().text),
+                    span(" Esc Q").color(self.config.theme().palette().primary),
+                ]
+                .on_link_click(never)
+            )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             Space::new().height(Length::Fixed(3.0)),
