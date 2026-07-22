@@ -32,7 +32,7 @@ libmpv2 = { version = "6.0.0", features = ["build_libmpv"] }
 
 [dependencies]
 atomic_float = "1.1.0"
-bytes = "1.12.0"
+bytes = "1.12.1"
 colors-transform = "0.2.11"
 dirs = "6.0.0"
 figment = { version = "0.10.19", features = ["toml"] }
@@ -42,12 +42,12 @@ itertools = "0.15.0"
 libmpv2 = "6.0.0"
 notify-rust = "4.18.0"
 rayon = "1.12.0"
-regex = "1.12.4"
+regex = "1.13.1"
 reqwest = { version = "0.13.4", features = ["cookies", "blocking"] }
 rust-fuzzy-search = "0.1.1"
-serde = { version = "1.0.228", features = ["serde_derive"] }
+serde = { version = "1.0.229", features = ["serde_derive"] }
 strum = "0.28.0"
 strum_macros = "0.28.0"
-time = "0.3.51"
-tokio = { version = "1.52.3", features = ["full"] }
-toml = "1.1.2"
+time = "0.3.54"
+tokio = { version = "1.53.1", features = ["full"] }
+toml = "1.1.3"
