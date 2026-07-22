@@ -4,6 +4,7 @@ use std::{
     io::{BufRead, BufReader},
     process::{Command, Stdio},
     sync::{Arc, atomic::Ordering, mpsc::channel},
+    thread,
 };
 
 use dirs::video_dir;
@@ -15,6 +16,7 @@ use itertools::Itertools;
 use notify_rust::Notification;
 use regex::Regex;
 use reqwest::Client;
+use tokio::runtime::Handle;
 
 use crate::{
     config::Config,
@@ -72,7 +74,9 @@ impl Default for App {
 
         let progress_re = Regex::new(r"([0-9.].*)%").unwrap();
 
-        tokio::spawn(async move {
+        let handle = Handle::current();
+
+        thread::spawn(move || {
             while let Ok(download_token) = rx.recv() {
                 download.progress().store(0.0, Ordering::Relaxed);
                 *download.current() = Some(download_token.clone());
@@ -83,11 +87,15 @@ impl Default for App {
                     episode,
                 } = download_token;
 
-                let mirrors = config
-                    .scraper
-                    .try_get_mirrors(&client, &slug, episode)
-                    .await
-                    .expect("Couldn't get mirrors")
+                let mirrors = handle.block_on(async {
+                    config
+                        .scraper
+                        .try_get_mirrors(&client, &slug, episode)
+                        .await
+                        .expect("Couldn't get mirrors")
+                });
+
+                let mirrors = mirrors
                     .into_iter()
                     .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
                     .collect_vec();

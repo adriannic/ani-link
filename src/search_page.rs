@@ -53,6 +53,7 @@ pub enum Message {
     Click(usize),
     Submit,
     KeyPressed(Key),
+    Retrieved(Anime, Vec<f64>),
 }
 
 pub struct SearchPage {
@@ -183,6 +184,16 @@ impl Page for SearchPage {
     fn update(&mut self, message: crate::app::Message) -> AppUpdate {
         if let app::Message::Search(message) = message {
             match message {
+                Message::Retrieved(anime, episodes) => AppUpdate::Page(Box::new(EpisodesPage {
+                    config: mem::take(&mut self.config),
+                    client: mem::take(&mut self.client),
+                    search_query: mem::take(&mut self.query),
+                    search_selected: self.selected,
+                    selected: 0,
+                    anime_list: mem::take(&mut self.anime_list),
+                    anime,
+                    episodes,
+                })),
                 Message::Update(text) => {
                     self.query = text;
                     self.fuzzy();
@@ -203,26 +214,23 @@ impl Page for SearchPage {
                         return AppUpdate::None;
                     }
 
-                    let anime = &self.filtered_list[self.selected];
+                    let anime = self.filtered_list[self.selected].clone();
+                    let scraper = self.config.scraper;
+                    let client = self.client.clone();
 
-                    let episodes = Handle::current()
-                        .block_on(
-                            self.config
-                                .scraper
-                                .try_get_episodes(&self.client, &anime.names[1]),
-                        )
-                        .expect("Couldn't get episodes");
+                    AppUpdate::Task(Task::perform(
+                        async move {
+                            let episodes = scraper
+                                .try_get_episodes(&client, &anime.names[1])
+                                .await
+                                .unwrap();
 
-                    AppUpdate::Page(Box::new(EpisodesPage {
-                        config: mem::take(&mut self.config),
-                        client: mem::take(&mut self.client),
-                        search_query: mem::take(&mut self.query),
-                        search_selected: self.selected,
-                        selected: 0,
-                        anime_list: mem::take(&mut self.anime_list),
-                        anime: anime.clone(),
-                        episodes,
-                    }))
+                            (anime.clone(), episodes)
+                        },
+                        |(anime, episodes)| {
+                            app::Message::Search(Message::Retrieved(anime, episodes))
+                        },
+                    ))
                 }
                 Message::KeyPressed(key) => match key.as_ref() {
                     Key::Character("j") | Key::Named(ArrowDown) => {
@@ -256,25 +264,23 @@ impl Page for SearchPage {
                         AppUpdate::None
                     }
                     Key::Character("l") | Key::Named(ArrowRight | Enter) => {
-                        let anime = &self.filtered_list[self.selected];
-                        let episodes = Handle::current()
-                            .block_on(
-                                self.config
-                                    .scraper
-                                    .try_get_episodes(&self.client, &anime.names[1]),
-                            )
-                            .expect("Couldn't get episodes");
+                        let anime = self.filtered_list[self.selected].clone();
+                        let scraper = self.config.scraper;
+                        let client = self.client.clone();
 
-                        AppUpdate::Page(Box::new(EpisodesPage {
-                            config: mem::take(&mut self.config),
-                            client: mem::take(&mut self.client),
-                            search_query: mem::take(&mut self.query),
-                            search_selected: self.selected,
-                            selected: 0,
-                            anime_list: mem::take(&mut self.anime_list),
-                            anime: anime.clone(),
-                            episodes,
-                        }))
+                        AppUpdate::Task(Task::perform(
+                            async move {
+                                let episodes = scraper
+                                    .try_get_episodes(&client, &anime.names[1])
+                                    .await
+                                    .unwrap();
+
+                                (anime.clone(), episodes)
+                            },
+                            |(anime, episodes)| {
+                                app::Message::Search(Message::Retrieved(anime, episodes))
+                            },
+                        ))
                     }
                     Key::Character("f" | "/") => {
                         self.selected = 0;

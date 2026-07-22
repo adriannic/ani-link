@@ -39,15 +39,21 @@ use itertools::Itertools;
 use libmpv2::Mpv;
 use notify_rust::Notification;
 use reqwest::Client;
-use tokio::runtime::Handle;
 
 const EPISODES_SCROLLABLE_ID: &str = "episodes_scrollable";
 pub const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
+
+#[derive(Clone, Debug)]
+pub enum Action {
+    Play,
+    Stream,
+}
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Click(usize),
     KeyPressed(Key),
+    Retrieved(Action, Vec<String>),
 }
 
 pub struct EpisodesPage {
@@ -117,18 +123,41 @@ impl Page for EpisodesPage {
         .into()
     }
 
+    #[allow(clippy::too_many_lines)]
     fn update(&mut self, message: crate::app::Message) -> AppUpdate {
         if let app::Message::Episodes(message) = message {
             match message {
+                Message::Retrieved(action, mirrors) => {
+                    match action {
+                        Action::Play => self.play_episode(mirrors),
+                        Action::Stream => stream_episode(mirrors),
+                    }
+                    AppUpdate::None
+                }
                 Message::Click(index) => {
                     if self.selected != index {
                         self.selected = index;
                         return AppUpdate::None;
                     }
 
-                    self.play_episode();
+                    let anime = self.anime.clone();
+                    let scraper = self.config.scraper;
+                    let client = self.client.clone();
+                    let episode = self.episodes[self.selected];
 
-                    AppUpdate::None
+                    AppUpdate::Task(Task::perform(
+                        async move {
+                            let mirrors = scraper
+                                .try_get_mirrors(&client, &anime.names[1], episode)
+                                .await
+                                .unwrap();
+
+                            (Action::Play, mirrors)
+                        },
+                        |(action, mirrors)| {
+                            app::Message::Episodes(Message::Retrieved(action, mirrors))
+                        },
+                    ))
                 }
                 Message::KeyPressed(key) => match key.as_ref() {
                     Key::Character("j") | Key::Named(ArrowDown) => {
@@ -146,8 +175,24 @@ impl Page for EpisodesPage {
                         AppUpdate::None
                     }
                     Key::Character("l") | Key::Named(ArrowRight | Enter) => {
-                        self.play_episode();
-                        AppUpdate::None
+                        let anime = self.anime.clone();
+                        let scraper = self.config.scraper;
+                        let client = self.client.clone();
+                        let episode = self.episodes[self.selected];
+
+                        AppUpdate::Task(Task::perform(
+                            async move {
+                                let mirrors = scraper
+                                    .try_get_mirrors(&client, &anime.names[1], episode)
+                                    .await
+                                    .unwrap();
+
+                                (Action::Play, mirrors)
+                            },
+                            |(action, mirrors)| {
+                                app::Message::Episodes(Message::Retrieved(action, mirrors))
+                            },
+                        ))
                     }
                     Key::Character("d") => {
                         let name = self.anime.names[0].clone();
@@ -172,8 +217,24 @@ impl Page for EpisodesPage {
                         ))
                     }
                     Key::Character("s") => {
-                        self.stream_episode();
-                        AppUpdate::None
+                        let anime = self.anime.clone();
+                        let scraper = self.config.scraper;
+                        let client = self.client.clone();
+                        let episode = self.episodes[self.selected];
+
+                        AppUpdate::Task(Task::perform(
+                            async move {
+                                let mirrors = scraper
+                                    .try_get_mirrors(&client, &anime.names[1], episode)
+                                    .await
+                                    .unwrap();
+
+                                (Action::Stream, mirrors)
+                            },
+                            |(action, mirrors)| {
+                                app::Message::Episodes(Message::Retrieved(action, mirrors))
+                            },
+                        ))
                     }
                     Key::Character("q" | "h") | Key::Named(ArrowLeft | Escape) => {
                         let image_query = ImageQueryState::spawn(
@@ -244,23 +305,13 @@ impl EpisodesPage {
         )
     }
 
-    fn play_episode(&self) {
-        let episode = self.episodes[self.selected];
-
-        let mirrors = Handle::current()
-            .block_on(self.config.scraper.try_get_mirrors(
-                &self.client,
-                &self.anime.names[1],
-                episode,
-            ))
-            .expect("Couldn't get mirrors");
-
+    fn play_episode(&self, mirrors: Vec<String>) {
         let viewable = mirrors
-            .iter()
+            .into_iter()
             .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
             .collect_vec();
 
-        let success = viewable.iter().all(|&mirror| {
+        let success = viewable.into_iter().all(|mirror| {
             let _ = Notification::new()
                 .summary("Ani-link")
                 .body(format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str())
@@ -268,7 +319,7 @@ impl EpisodesPage {
                 .is_ok();
 
             let (tx, rx) = channel();
-            let mirror_clone = mirror.clone();
+            let mirror_clone = mirror;
             let save_on_quit = self.config.save_on_quit;
 
             thread::spawn(move || {
@@ -324,7 +375,7 @@ impl EpisodesPage {
                 mpv.command("quit", &[]).unwrap();
             });
 
-            rx.recv().unwrap()
+            rx.recv().unwrap_or(false)
         });
 
         if !success {
@@ -335,46 +386,37 @@ impl EpisodesPage {
                 .is_ok();
         }
     }
+}
 
-    fn stream_episode(&self) {
-        let episode = self.episodes[self.selected];
-        let mirrors = Handle::current()
-            .block_on(self.config.scraper.try_get_mirrors(
-                &self.client,
-                &self.anime.names[1],
-                episode,
-            ))
-            .expect("Couldn't get mirrors");
+fn stream_episode(mirrors: Vec<String>) {
+    let viewable = mirrors
+        .into_iter()
+        .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
+        .collect_vec();
 
-        let viewable = mirrors
-            .iter()
-            .filter(|mirror| WHITELIST.iter().any(|elem| mirror.contains(elem)))
-            .collect_vec();
+    let success = viewable.into_iter().any(|mirror| {
+        let mut command = Command::new(format!(
+            "syncplay{}",
+            if cfg!(target_os = "windows") {
+                ".exe"
+            } else {
+                ""
+            }
+        ));
 
-        let success = viewable.iter().any(|mirror| {
-            let mut command = Command::new(format!(
-                "syncplay{}",
-                if cfg!(target_os = "windows") {
-                    ".exe"
-                } else {
-                    ""
-                }
-            ));
+        command
+            .arg(mirror)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .is_ok()
+    });
 
-            command
-                .arg(mirror)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .is_ok()
-        });
-
-        if !success {
-            let _ = Notification::new()
-                .summary("Ani-link")
-                .body("No se ha podido abrir syncplay")
-                .show()
-                .is_ok();
-        }
+    if !success {
+        let _ = Notification::new()
+            .summary("Ani-link")
+            .body("No se ha podido abrir syncplay")
+            .show()
+            .is_ok();
     }
 }

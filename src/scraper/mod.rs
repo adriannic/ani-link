@@ -10,11 +10,10 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-use crate::scraper::{animeav1scraper::AnimeAv1Scraper, animeflvscraper::AnimeFlvScraper};
+use crate::scraper::animeav1scraper::AnimeAv1Scraper;
 
 pub mod anime;
 pub mod animeav1scraper;
-pub mod animeflvscraper;
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParseScraperError;
@@ -23,7 +22,6 @@ pub struct ParseScraperError;
 pub enum ScraperImpl {
     #[default]
     AnimeAv1Scraper,
-    AnimeFlvScraper,
 }
 
 impl FromStr for ScraperImpl {
@@ -32,7 +30,6 @@ impl FromStr for ScraperImpl {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "AnimeAv1Scraper" => Ok(Self::AnimeAv1Scraper),
-            "AnimeFlvScraper" => Ok(Self::AnimeFlvScraper),
             _ => Err(ParseScraperError {}),
         }
     }
@@ -47,15 +44,13 @@ impl fmt::Display for ScraperImpl {
 impl ScraperImpl {
     pub const fn next(self) -> Self {
         match self {
-            Self::AnimeAv1Scraper => Self::AnimeFlvScraper,
-            Self::AnimeFlvScraper => Self::AnimeAv1Scraper,
+            Self::AnimeAv1Scraper => Self::AnimeAv1Scraper,
         }
     }
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::AnimeAv1Scraper => Self::AnimeFlvScraper,
-            Self::AnimeFlvScraper => Self::AnimeAv1Scraper,
+            Self::AnimeAv1Scraper => Self::AnimeAv1Scraper,
         }
     }
 
@@ -66,7 +61,6 @@ impl ScraperImpl {
     ) -> Result<Vec<Anime>, Box<dyn Error>> {
         match self {
             Self::AnimeAv1Scraper => AnimeAv1Scraper::try_search(client, progress).await,
-            Self::AnimeFlvScraper => AnimeFlvScraper::try_search(client, progress).await,
         }
     }
 
@@ -77,7 +71,6 @@ impl ScraperImpl {
     ) -> Result<Vec<f64>, Box<dyn Error>> {
         match self {
             Self::AnimeAv1Scraper => AnimeAv1Scraper::try_get_episodes(client, slug).await,
-            Self::AnimeFlvScraper => AnimeFlvScraper::try_get_episodes(client, slug).await,
         }
     }
 
@@ -89,14 +82,12 @@ impl ScraperImpl {
     ) -> Result<Vec<String>, Box<dyn Error>> {
         match self {
             Self::AnimeAv1Scraper => AnimeAv1Scraper::try_get_mirrors(client, slug, episode).await,
-            Self::AnimeFlvScraper => AnimeFlvScraper::try_get_mirrors(client, slug, episode).await,
         }
     }
 
     pub fn pages(self) -> usize {
         match self {
             Self::AnimeAv1Scraper => AnimeAv1Scraper::pages(),
-            Self::AnimeFlvScraper => AnimeFlvScraper::pages(),
         }
     }
 }
