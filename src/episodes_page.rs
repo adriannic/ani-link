@@ -9,7 +9,6 @@ use crate::{
     app,
     config::Config,
     download::DownloadToken,
-    image_query_state::ImageQueryState,
     page::{AppUpdate, Page},
     presets::{square_box, transparent_button_cond},
     scraper::anime::Anime,
@@ -237,15 +236,6 @@ impl Page for EpisodesPage {
                         ))
                     }
                     Key::Character("q" | "h") | Key::Named(ArrowLeft | Escape) => {
-                        let image_query = ImageQueryState::spawn(
-                            self.client.clone(),
-                            self.anime_list
-                                .first()
-                                .expect("No animes found")
-                                .image_url
-                                .clone(),
-                        );
-
                         let mut page = SearchPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
@@ -253,12 +243,12 @@ impl Page for EpisodesPage {
                             query: mem::take(&mut self.search_query),
                             selected: self.search_selected,
                             filtered_list: mem::take(&mut self.anime_list),
-                            image: image_query,
+                            image: None,
                         };
 
-                        page.fuzzy();
+                        let image_task = page.fuzzy();
 
-                        AppUpdate::Page(Box::new(page))
+                        AppUpdate::Both((Box::new(page), image_task))
                     }
                     _ => AppUpdate::None,
                 },

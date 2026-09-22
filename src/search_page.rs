@@ -9,7 +9,8 @@ use iced::{
     },
     never,
     widget::{
-        Column, Id, Scrollable, column, container, image,
+        Column, Id, Scrollable, column, container,
+        image::{Handle, Image},
         operation::{focus, focus_next, snap_to},
         rich_text, row,
         scrollable::{self, Direction, Scrollbar},
@@ -27,16 +28,14 @@ use std::{
     mem,
     process::{Command, Stdio},
     sync::{Arc, atomic::AtomicUsize},
-    time::Duration,
 };
-use tokio::runtime::Handle;
+use tokio::runtime::Handle as TokioHandle;
 
 use crate::{
     app,
     config::Config,
     download::DownloadToken,
     episodes_page::{EpisodesPage, WHITELIST},
-    image_query_state::ImageQueryState,
     list_query_state::ListQueryState,
     main_menu_page::{MainMenuPage, Selection},
     page::{AppUpdate, Page},
@@ -49,7 +48,8 @@ pub const SEARCH_SCROLLABLE_ID: &str = "search_scrollable";
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Update(String),
+    UpdateSearch(String),
+    UpdateImage(Handle),
     Click(usize),
     Submit,
     KeyPressed(Key),
@@ -63,7 +63,7 @@ pub struct SearchPage {
     pub query: String,
     pub selected: usize,
     pub filtered_list: Vec<Anime>,
-    pub image: ImageQueryState,
+    pub image: Option<Handle>,
 }
 
 impl Page for SearchPage {
@@ -84,7 +84,7 @@ impl Page for SearchPage {
                             value: theme.palette().text,
                             selection: theme.palette().primary,
                         })
-                        .on_input(|s| app::Message::Search(Message::Update(s)))
+                        .on_input(|s| app::Message::Search(Message::UpdateSearch(s)))
                         .on_submit(app::Message::Search(Message::Submit))
                 ]
                 .spacing(3)
@@ -144,29 +144,30 @@ impl Page for SearchPage {
                 .width(Length::FillPortion(2)),
                 square_box(container(
                     column![
-                        Scrollable::new(if let ImageQueryState::Obtained(handle) = &self.image {
-                            column![
+                        Scrollable::new(self.image.as_ref().map_or_else(
+                            || column![].spacing(6).padding(6),
+                            |handle| {
                                 column![
-                                    image(handle).width(Length::Fill),
-                                    text(&anime.names[0])
-                                        .font(Font {
-                                            weight: iced::font::Weight::Bold,
-                                            ..Font::DEFAULT
-                                        })
-                                        .style(|theme: &iced::Theme| text::Style {
-                                            color: Some(theme.palette().primary)
-                                        })
-                                        .width(Length::Fill)
-                                        .align_x(Horizontal::Center)
-                                        .align_y(Vertical::Bottom)
-                                ],
-                                text(&anime.synopsis).width(Length::Fill)
-                            ]
-                            .spacing(6)
-                            .padding(6)
-                        } else {
-                            column![].spacing(6).padding(6)
-                        })
+                                    column![
+                                        Image::new(handle).width(Length::Fill),
+                                        text(&anime.names[0])
+                                            .font(Font {
+                                                weight: iced::font::Weight::Bold,
+                                                ..Font::DEFAULT
+                                            })
+                                            .style(|theme: &iced::Theme| text::Style {
+                                                color: Some(theme.palette().primary)
+                                            })
+                                            .width(Length::Fill)
+                                            .align_x(Horizontal::Center)
+                                            .align_y(Vertical::Bottom)
+                                    ],
+                                    text(&anime.synopsis).width(Length::Fill)
+                                ]
+                                .spacing(6)
+                                .padding(6)
+                            }
+                        ))
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .direction(Direction::Vertical(Scrollbar::new()))
@@ -194,24 +195,33 @@ impl Page for SearchPage {
                     anime,
                     episodes,
                 })),
-                Message::Update(text) => {
+                Message::UpdateSearch(text) => {
                     self.query = text;
-                    self.fuzzy();
-                    AppUpdate::Task(self.scroll_to_index())
+                    let image_task = self.fuzzy();
+                    AppUpdate::Task(Task::batch(vec![self.scroll_to_index(), image_task]))
+                }
+                Message::UpdateImage(handle) => {
+                    self.image = Some(handle);
+                    AppUpdate::None
                 }
                 Message::Submit => AppUpdate::Task(focus_next()),
                 Message::Click(index) => {
                     if self.selected != index {
                         self.selected = index;
-                        self.image = ImageQueryState::spawn(
-                            self.client.clone(),
-                            self.filtered_list
-                                .get(index)
-                                .expect("No animes found")
-                                .image_url
-                                .clone(),
-                        );
-                        return AppUpdate::None;
+                        self.image = None;
+                        let image_url = self
+                            .filtered_list
+                            .get(index)
+                            .expect("No animes found")
+                            .image_url
+                            .clone();
+                        return AppUpdate::Task(Task::batch(vec![
+                            Task::perform(
+                                retrieve_image(self.client.clone(), image_url),
+                                |handle| app::Message::Search(Message::UpdateImage(handle)),
+                            ),
+                            self.scroll_to_index(),
+                        ]));
                     }
 
                     let anime = self.filtered_list[self.selected].clone();
@@ -236,30 +246,40 @@ impl Page for SearchPage {
                     Key::Character("j") | Key::Named(ArrowDown) => {
                         if self.selected < self.filtered_list.len() - 1 {
                             self.selected += 1;
-                            self.image = ImageQueryState::spawn(
-                                self.client.clone(),
-                                self.filtered_list
-                                    .get(self.selected)
-                                    .expect("No animes found")
-                                    .image_url
-                                    .clone(),
-                            );
-                            return AppUpdate::Task(self.scroll_to_index());
+                            self.image = None;
+                            let image_url = self
+                                .filtered_list
+                                .get(self.selected)
+                                .expect("No animes found")
+                                .image_url
+                                .clone();
+                            return AppUpdate::Task(Task::batch(vec![
+                                Task::perform(
+                                    retrieve_image(self.client.clone(), image_url),
+                                    |handle| app::Message::Search(Message::UpdateImage(handle)),
+                                ),
+                                self.scroll_to_index(),
+                            ]));
                         }
                         AppUpdate::None
                     }
                     Key::Character("k") | Key::Named(ArrowUp) => {
                         if self.selected > 0 {
                             self.selected -= 1;
-                            self.image = ImageQueryState::spawn(
-                                self.client.clone(),
-                                self.filtered_list
-                                    .get(self.selected)
-                                    .expect("No animes found")
-                                    .image_url
-                                    .clone(),
-                            );
-                            return AppUpdate::Task(self.scroll_to_index());
+                            self.image = None;
+                            let image_url = self
+                                .filtered_list
+                                .get(self.selected)
+                                .expect("No animes found")
+                                .image_url
+                                .clone();
+                            return AppUpdate::Task(Task::batch(vec![
+                                Task::perform(
+                                    retrieve_image(self.client.clone(), image_url),
+                                    |handle| app::Message::Search(Message::UpdateImage(handle)),
+                                ),
+                                self.scroll_to_index(),
+                            ]));
                         }
                         AppUpdate::None
                     }
@@ -291,7 +311,7 @@ impl Page for SearchPage {
                     }
                     Key::Character("d") => {
                         let anime = self.filtered_list[self.selected].clone();
-                        let episodes = Handle::current()
+                        let episodes = TokioHandle::current()
                             .block_on(
                                 self.config
                                     .scraper
@@ -345,9 +365,6 @@ impl Page for SearchPage {
                     _ => AppUpdate::None,
                 },
             }
-        } else if matches!(message, app::Message::Update) {
-            self.image = mem::take(&mut self.image).get();
-            AppUpdate::None
         } else {
             AppUpdate::None
         }
@@ -355,7 +372,7 @@ impl Page for SearchPage {
 
     fn subscription(&self) -> iced::Subscription<crate::app::Message> {
         Subscription::batch(vec![
-            iced::time::every(Duration::from_millis(100)).map(|_| app::Message::Update),
+            // iced::time::every(Duration::from_millis(100)).map(|_| app::Message::Update),
             event::listen_with(move |event, status, _| match (event, status) {
                 (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
                     Some(app::Message::Search(Message::KeyPressed(key)))
@@ -390,7 +407,7 @@ impl SearchPage {
         )
     }
 
-    pub fn fuzzy(&mut self) {
+    pub fn fuzzy(&mut self) -> Task<app::Message> {
         let mut result = self
             .anime_list
             .as_slice()
@@ -419,19 +436,21 @@ impl SearchPage {
         });
 
         self.filtered_list = result.into_iter().map(|(anime, _)| anime).collect();
-        self.image = ImageQueryState::spawn(
-            self.client.clone(),
-            self.filtered_list
-                .get(self.selected)
-                .expect("No animes found")
-                .image_url
-                .clone(),
-        );
+        self.image = None;
+        let image_url = self
+            .filtered_list
+            .get(self.selected)
+            .expect("No animes found")
+            .image_url
+            .clone();
+        Task::perform(retrieve_image(self.client.clone(), image_url), |handle| {
+            app::Message::Search(Message::UpdateImage(handle))
+        })
     }
 
     fn stream_anime(&self) {
         let anime = &self.filtered_list[self.selected];
-        let viewable = Handle::current()
+        let viewable = TokioHandle::current()
             .block_on(
                 self.config
                     .scraper
@@ -440,7 +459,7 @@ impl SearchPage {
             .expect("Couldn't get episodes")
             .iter()
             .flat_map(|&episode| {
-                Handle::current()
+                TokioHandle::current()
                     .block_on(self.config.scraper.try_get_mirrors(
                         &self.client,
                         &anime.names[1],
@@ -487,4 +506,21 @@ impl SearchPage {
                 .is_ok();
         }
     }
+}
+
+pub async fn retrieve_image(client: Client, image_url: String) -> Handle {
+    Handle::from_bytes(
+        tokio::spawn(async move {
+            client
+                .get(image_url)
+                .send()
+                .await
+                .expect("Error sending request for image")
+                .bytes()
+                .await
+                .expect("Error converting image data to bytes")
+        })
+        .await
+        .expect("Thread couldn't be joined"),
+    )
 }

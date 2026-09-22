@@ -1,7 +1,7 @@
 use std::{fmt, mem, process::exit, sync::atomic::Ordering};
 
 use iced::{
-    Event, Font, Length, Subscription,
+    Event, Font, Length, Subscription, Task,
     alignment::Horizontal,
     event::{self, Status},
     keyboard::{
@@ -19,7 +19,6 @@ use strum_macros::EnumIter;
 use crate::{
     app,
     config::Config,
-    image_query_state::ImageQueryState,
     list_query_state::ListQueryState,
     options_page::{self, OptionsPage},
     page::{AppUpdate, Page},
@@ -184,26 +183,22 @@ impl Page for MainMenuPage {
                     };
 
                     let filtered_list = anime_list.clone();
-                    let image_query = ImageQueryState::spawn(
-                        self.client.clone(),
-                        anime_list
-                            .first()
-                            .expect("No animes found")
-                            .image_url
-                            .clone(),
-                    );
+
+                    let mut page = SearchPage {
+                        config: mem::take(&mut self.config),
+                        client: mem::take(&mut self.client),
+                        anime_list,
+                        query: String::new(),
+                        selected: 0,
+                        filtered_list,
+                        image: None,
+                    };
+
+                    let image_task = page.fuzzy();
 
                     AppUpdate::Both((
-                        Box::new(SearchPage {
-                            config: mem::take(&mut self.config),
-                            client: mem::take(&mut self.client),
-                            anime_list,
-                            query: String::new(),
-                            selected: 0,
-                            filtered_list,
-                            image: image_query,
-                        }),
-                        focus(Id::new(SEARCH_BAR_ID)),
+                        Box::new(page),
+                        Task::batch(vec![focus(Id::new(SEARCH_BAR_ID)), image_task]),
                     ))
                 }
                 Selection::Options => AppUpdate::Page(Box::new(OptionsPage {
@@ -255,26 +250,22 @@ impl Page for MainMenuPage {
                 };
 
                 let filtered_list = anime_list.clone();
-                let image_query = ImageQueryState::spawn(
-                    self.client.clone(),
-                    anime_list
-                        .first()
-                        .expect("No animes found")
-                        .image_url
-                        .clone(),
-                );
+
+                let mut page = SearchPage {
+                    config: mem::take(&mut self.config),
+                    client: mem::take(&mut self.client),
+                    anime_list,
+                    query: String::new(),
+                    selected: 0,
+                    filtered_list,
+                    image: None,
+                };
+
+                let image_task = page.fuzzy();
 
                 AppUpdate::Both((
-                    Box::new(SearchPage {
-                        config: mem::take(&mut self.config),
-                        client: mem::take(&mut self.client),
-                        anime_list,
-                        query: String::new(),
-                        selected: 0,
-                        filtered_list,
-                        image: image_query,
-                    }),
-                    focus(Id::new(SEARCH_BAR_ID)),
+                    Box::new(page),
+                    Task::batch(vec![focus(Id::new(SEARCH_BAR_ID)), image_task]),
                 ))
             } else {
                 AppUpdate::None
