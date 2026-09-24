@@ -1,15 +1,17 @@
-use std::error::Error;
 use std::fs::File;
 use std::io::Write;
+use std::{error::Error, str::FromStr};
 
 use dirs::config_dir;
 use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
+use rust_i18n::{locale, set_locale};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    locale::Locales,
     scraper::ScraperImpl,
     themes::{PaletteWrapper, Themes},
 };
@@ -20,6 +22,7 @@ pub struct Config {
     pub save_on_quit: bool,
     pub theme: Themes,
     pub palette: PaletteWrapper,
+    pub locale: Locales,
 }
 
 impl Default for Config {
@@ -29,6 +32,7 @@ impl Default for Config {
             save_on_quit: true,
             theme: Themes::default(),
             palette: PaletteWrapper::default(),
+            locale: Locales::from_str(&locale()).unwrap_or_default(),
         }
     }
 }
@@ -43,6 +47,8 @@ impl Config {
             .extract()?;
 
         config.save()?;
+
+        set_locale(&config.locale.to_string().to_lowercase());
 
         Ok(config)
     }

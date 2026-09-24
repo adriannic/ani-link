@@ -14,6 +14,7 @@ use iced::{
     widget::{Id, Space, column, container, operation::focus, rich_text, span, text},
 };
 use reqwest::Client;
+use rust_i18n::t;
 use strum_macros::EnumIter;
 
 use crate::{
@@ -34,7 +35,7 @@ pub enum Message {
 
 #[derive(EnumIter, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Selection {
-    Search,
+    Anime,
     Options,
     Exit,
 }
@@ -42,14 +43,14 @@ pub enum Selection {
 impl Selection {
     pub const fn next(self) -> Self {
         match self {
-            Self::Search => Self::Options,
+            Self::Anime => Self::Options,
             Self::Options | Self::Exit => Self::Exit,
         }
     }
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::Search | Self::Options => Self::Search,
+            Self::Anime | Self::Options => Self::Anime,
             Self::Exit => Self::Options,
         }
     }
@@ -61,9 +62,9 @@ impl fmt::Display for Selection {
             f,
             "{}",
             match self {
-                Self::Search => "Buscar",
-                Self::Options => "Opciones",
-                Self::Exit => "Salir",
+                Self::Anime => t!("anime"),
+                Self::Options => t!("options"),
+                Self::Exit => t!("exit"),
             }
         )
     }
@@ -107,24 +108,24 @@ impl Page for MainMenuPage {
             container(
                 if self.waiting {
                     transparent_button(
-                        &format!("Cargando ({progress}/{total})"),
-                        matches!(self.selection, Selection::Search),
+                        &format!("{} ({progress}/{total})", t!("fetching")),
+                        matches!(self.selection, Selection::Anime),
                     )
                 } else {
-                    transparent_button("Buscar", matches!(self.selection, Selection::Search))
+                    transparent_button(&t!("anime"), matches!(self.selection, Selection::Anime))
                 }
-                .on_press(app::Message::MainMenu(Message::Select(Selection::Search)))
+                .on_press(app::Message::MainMenu(Message::Select(Selection::Anime)))
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                transparent_button("Opciones", matches!(self.selection, Selection::Options),)
+                transparent_button(&t!("options"), matches!(self.selection, Selection::Options),)
                     .on_press(app::Message::MainMenu(Message::Select(Selection::Options)))
             )
             .align_x(Horizontal::Center)
             .width(Length::Fill),
             container(
-                transparent_button("Salir", matches!(self.selection, Selection::Exit))
+                transparent_button(&t!("exit"), matches!(self.selection, Selection::Exit))
                     .on_press(app::Message::MainMenu(Message::Select(Selection::Exit)))
             )
             .align_x(Horizontal::Center)
@@ -138,13 +139,13 @@ impl Page for MainMenuPage {
             .width(Length::Fill),
             container(
                 rich_text![
-                    span("Subir:").color(self.config.theme().palette().text),
+                    span(format!("{}:", t!("up"))).color(self.config.theme().palette().text),
                     span(" ↑ K ").color(self.config.theme().palette().primary),
-                    span(" Bajar:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("down"))).color(self.config.theme().palette().text),
                     span(" ↓ J ").color(self.config.theme().palette().primary),
-                    span(" Confirmar:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("confirm"))).color(self.config.theme().palette().text),
                     span(" → L Enter ").color(self.config.theme().palette().primary),
-                    span(" Salir:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("exit"))).color(self.config.theme().palette().text),
                     span(" ← H Esc").color(self.config.theme().palette().primary),
                 ]
                 .on_link_click(never)
@@ -160,7 +161,7 @@ impl Page for MainMenuPage {
     fn update(&mut self, message: app::Message) -> AppUpdate {
         let mut change_selection = |selection| -> AppUpdate {
             match selection {
-                Selection::Search => {
+                Selection::Anime => {
                     let progress = match &self.anime_list {
                         ListQueryState::Obtaining(_, progress)
                         | ListQueryState::Obtained(_, progress) => progress.clone(),
@@ -206,7 +207,7 @@ impl Page for MainMenuPage {
                     config: mem::take(&mut self.config),
                     client: mem::take(&mut self.client),
                     anime_list: mem::take(&mut self.anime_list),
-                    selection: options_page::Options::Scraper,
+                    selection: options_page::Options::default(),
                 })),
                 Selection::Exit => exit(0),
             }

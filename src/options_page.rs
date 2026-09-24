@@ -13,12 +13,14 @@ use iced::{
     widget::{Space, column, container, rich_text, row, span},
 };
 use reqwest::Client;
+use rust_i18n::{set_locale, t};
 use strum_macros::EnumIter;
 
 use crate::{
     app,
     config::Config,
     list_query_state::ListQueryState,
+    locale::Locales,
     main_menu_page::{self, MainMenuPage},
     page::{AppUpdate, Page},
     presets::{options_list, options_slider, options_tick, square_box},
@@ -42,6 +44,7 @@ impl Default for Channel {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    UpdateLocale(Locales),
     UpdateScraper(ScraperImpl),
     UpdateSaveOnQuit(bool),
     UpdateTheme(Themes),
@@ -54,9 +57,10 @@ pub enum Message {
 #[derive(EnumIter, Default, Clone, Copy)]
 pub enum Options {
     #[default]
+    Locale,
     Scraper,
     SaveOnQuit,
-    Theme,
+    Colorscheme,
     Background(Channel),
     Text(Channel),
     Primary(Channel),
@@ -65,9 +69,10 @@ pub enum Options {
 impl Options {
     pub const fn next(self) -> Self {
         match self {
+            Self::Locale => Self::Scraper,
             Self::Scraper => Self::SaveOnQuit,
-            Self::SaveOnQuit => Self::Theme,
-            Self::Theme => Self::Background(Channel::Red(0.0)),
+            Self::SaveOnQuit => Self::Colorscheme,
+            Self::Colorscheme => Self::Background(Channel::Red(0.0)),
             Self::Background(Channel::Red(_)) => Self::Background(Channel::Green(0.0)),
             Self::Background(Channel::Green(_)) => Self::Background(Channel::Blue(0.0)),
             Self::Background(Channel::Blue(_)) => Self::Background(Channel::Alpha(0.0)),
@@ -78,17 +83,18 @@ impl Options {
             Self::Text(Channel::Alpha(_)) => Self::Primary(Channel::Red(0.0)),
             Self::Primary(Channel::Red(_)) => Self::Primary(Channel::Green(0.0)),
             Self::Primary(Channel::Green(_)) => Self::Primary(Channel::Blue(0.0)),
-            Self::Primary(Channel::Blue(_) | Channel::Alpha(_)) => {
-                Self::Primary(Channel::Alpha(0.0))
-            }
+            Self::Primary(Channel::Blue(_)) => Self::Primary(Channel::Alpha(0.0)),
+            Self::Primary(Channel::Alpha(_)) => Self::Locale,
         }
     }
 
     pub const fn prev(self) -> Self {
         match self {
-            Self::Scraper | Self::SaveOnQuit => Self::Scraper,
-            Self::Theme => Self::SaveOnQuit,
-            Self::Background(Channel::Red(_)) => Self::Theme,
+            Self::Locale => Self::Primary(Channel::Alpha(0.0)),
+            Self::Scraper => Self::Locale,
+            Self::SaveOnQuit => Self::Scraper,
+            Self::Colorscheme => Self::SaveOnQuit,
+            Self::Background(Channel::Red(_)) => Self::Colorscheme,
             Self::Background(Channel::Green(_)) => Self::Background(Channel::Red(0.0)),
             Self::Background(Channel::Blue(_)) => Self::Background(Channel::Green(0.0)),
             Self::Background(Channel::Alpha(_)) => Self::Background(Channel::Blue(0.0)),
@@ -118,8 +124,18 @@ impl Page for OptionsPage {
         square_box(column![
             row![
                 column![
+                    options_list::<Locales>(
+                        &format!("{}: ", t!("locale")),
+                        matches!(self.selection, Options::Locale),
+                        Some(self.config.locale.to_string()),
+                        |selected| {
+                            app::Message::Options(Message::UpdateLocale(
+                                selected.parse::<Locales>().expect("Shouldn't happen"),
+                            ))
+                        }
+                    ),
                     options_list::<ScraperImpl>(
-                        "Scraper: ",
+                        &format!("{}: ", t!("scraper")),
                         matches!(self.selection, Options::Scraper),
                         Some(self.config.scraper.to_string()),
                         |selected| {
@@ -129,14 +145,14 @@ impl Page for OptionsPage {
                         }
                     ),
                     options_tick(
-                        "Guardar progreso al salir: ",
+                        &format!("{}: ", t!("save-on-quit")),
                         matches!(self.selection, Options::SaveOnQuit),
                         self.config.save_on_quit,
                         |selected| { app::Message::Options(Message::UpdateSaveOnQuit(selected)) }
                     ),
                     options_list::<Themes>(
-                        "Esquema de colores: ",
-                        matches!(self.selection, Options::Theme),
+                        &format!("{}: ", t!("colorscheme")),
+                        matches!(self.selection, Options::Colorscheme),
                         Some(self.config.theme.to_string()),
                         |selected| {
                             app::Message::Options(Message::UpdateTheme(
@@ -145,73 +161,73 @@ impl Page for OptionsPage {
                         }
                     ),
                     options_slider(
-                        "Color de fondo (rojo): ",
+                        &format!("{} ({}): ", t!("bg-color"), t!("red")),
                         matches!(self.selection, Options::Background(Channel::Red(_))),
                         self.config.palette.0.background.r,
                         |v| app::Message::Options(Message::Background(Channel::Red(v)))
                     ),
                     options_slider(
-                        "Color de fondo (verde): ",
+                        &format!("{} ({}): ", t!("bg-color"), t!("green")),
                         matches!(self.selection, Options::Background(Channel::Green(_))),
                         self.config.palette.0.background.g,
                         |v| app::Message::Options(Message::Background(Channel::Green(v)))
                     ),
                     options_slider(
-                        "Color de fondo (azul): ",
+                        &format!("{} ({}): ", t!("bg-color"), t!("blue")),
                         matches!(self.selection, Options::Background(Channel::Blue(_))),
                         self.config.palette.0.background.b,
                         |v| app::Message::Options(Message::Background(Channel::Blue(v)))
                     ),
                     options_slider(
-                        "Color de fondo (opacidad): ",
+                        &format!("{} ({}): ", t!("bg-color"), t!("opacity")),
                         matches!(self.selection, Options::Background(Channel::Alpha(_))),
                         self.config.palette.0.background.a,
                         |v| app::Message::Options(Message::Background(Channel::Alpha(v)))
                     ),
                     options_slider(
-                        "Color de texto (rojo): ",
+                        &format!("{} ({}): ", t!("fg-color"), t!("red")),
                         matches!(self.selection, Options::Text(Channel::Red(_))),
                         self.config.palette.0.text.r,
                         |v| app::Message::Options(Message::Text(Channel::Red(v)))
                     ),
                     options_slider(
-                        "Color de texto (verde): ",
+                        &format!("{} ({}): ", t!("fg-color"), t!("green")),
                         matches!(self.selection, Options::Text(Channel::Green(_))),
                         self.config.palette.0.text.g,
                         |v| app::Message::Options(Message::Text(Channel::Green(v)))
                     ),
                     options_slider(
-                        "Color de texto (azul): ",
+                        &format!("{} ({}): ", t!("fg-color"), t!("blue")),
                         matches!(self.selection, Options::Text(Channel::Blue(_))),
                         self.config.palette.0.text.b,
                         |v| app::Message::Options(Message::Text(Channel::Blue(v)))
                     ),
                     options_slider(
-                        "Color de texto (opacidad): ",
+                        &format!("{} ({}): ", t!("fg-color"), t!("opacity")),
                         matches!(self.selection, Options::Text(Channel::Alpha(_))),
                         self.config.palette.0.text.a,
                         |v| app::Message::Options(Message::Text(Channel::Alpha(v)))
                     ),
                     options_slider(
-                        "Color de acento (rojo): ",
+                        &format!("{} ({}): ", t!("accent-color"), t!("red")),
                         matches!(self.selection, Options::Primary(Channel::Red(_))),
                         self.config.palette.0.primary.r,
                         |v| app::Message::Options(Message::Primary(Channel::Red(v)))
                     ),
                     options_slider(
-                        "Color de acento (verde): ",
+                        &format!("{} ({}): ", t!("accent-color"), t!("green")),
                         matches!(self.selection, Options::Primary(Channel::Green(_))),
                         self.config.palette.0.primary.g,
                         |v| app::Message::Options(Message::Primary(Channel::Green(v)))
                     ),
                     options_slider(
-                        "Color de acento (azul): ",
+                        &format!("{} ({}): ", t!("accent-color"), t!("blue")),
                         matches!(self.selection, Options::Primary(Channel::Blue(_))),
                         self.config.palette.0.primary.b,
                         |v| app::Message::Options(Message::Primary(Channel::Blue(v)))
                     ),
                     options_slider(
-                        "Color de acento (opacidad): ",
+                        &format!("{} ({}): ", t!("accent-color"), t!("opacity")),
                         matches!(self.selection, Options::Primary(Channel::Alpha(_))),
                         self.config.palette.0.primary.a,
                         |v| app::Message::Options(Message::Primary(Channel::Alpha(v)))
@@ -224,17 +240,18 @@ impl Page for OptionsPage {
             Space::new().height(Length::Fill),
             container(
                 rich_text![
-                    span("Subir:").color(self.config.theme().palette().text),
+                    span(format!("{}:", t!("up"))).color(self.config.theme().palette().text),
                     span(" ↑ K ").color(self.config.theme().palette().primary),
-                    span(" Bajar:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("down"))).color(self.config.theme().palette().text),
                     span(" ↓ J ").color(self.config.theme().palette().primary),
-                    span(" Siguiente:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("next"))).color(self.config.theme().palette().text),
                     span(" → L ").color(self.config.theme().palette().primary),
-                    span(" Anterior:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("previous"))).color(self.config.theme().palette().text),
                     span(" ← H ").color(self.config.theme().palette().primary),
-                    span(" Guardar:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("save"))).color(self.config.theme().palette().text),
                     span(" Enter ").color(self.config.theme().palette().primary),
-                    span(" Salir sin guardar:").color(self.config.theme().palette().text),
+                    span(format!(" {}:", t!("dont-save")))
+                        .color(self.config.theme().palette().text),
                     span(" Esc Q").color(self.config.theme().palette().primary),
                 ]
                 .on_link_click(never)
@@ -250,6 +267,11 @@ impl Page for OptionsPage {
     fn update(&mut self, message: app::Message) -> AppUpdate {
         if let app::Message::Options(message) = message {
             match message {
+                Message::UpdateLocale(locale) => {
+                    self.config.locale = locale;
+                    set_locale(&locale.to_string().to_lowercase());
+                    AppUpdate::None
+                }
                 Message::UpdateScraper(scraper) => {
                     self.config.scraper = scraper;
                     AppUpdate::None
@@ -327,6 +349,11 @@ impl Page for OptionsPage {
                         AppUpdate::None
                     }
                     Key::Character("l") | Key::Named(ArrowRight) => match self.selection {
+                        Options::Locale => {
+                            self.config.locale = self.config.locale.next();
+                            set_locale(&self.config.locale.to_string().to_lowercase());
+                            AppUpdate::None
+                        }
                         Options::Scraper => {
                             self.config.scraper = self.config.scraper.next();
                             AppUpdate::None
@@ -335,7 +362,7 @@ impl Page for OptionsPage {
                             self.config.save_on_quit = !self.config.save_on_quit;
                             AppUpdate::None
                         }
-                        Options::Theme => {
+                        Options::Colorscheme => {
                             self.config.theme = self.config.theme.next();
                             self.config.palette = self.theme().palette().into();
                             AppUpdate::None
@@ -420,6 +447,11 @@ impl Page for OptionsPage {
                         }
                     },
                     Key::Character("h") | Key::Named(ArrowLeft) => match self.selection {
+                        Options::Locale => {
+                            self.config.locale = self.config.locale.prev();
+                            set_locale(&self.config.locale.to_string().to_lowercase());
+                            AppUpdate::None
+                        }
                         Options::Scraper => {
                             self.config.scraper = self.config.scraper.prev();
                             AppUpdate::None
@@ -428,7 +460,7 @@ impl Page for OptionsPage {
                             self.config.save_on_quit = !self.config.save_on_quit;
                             AppUpdate::None
                         }
-                        Options::Theme => {
+                        Options::Colorscheme => {
                             self.config.theme = self.config.theme.prev();
                             self.config.palette = self.theme().palette().into();
                             AppUpdate::None
@@ -531,6 +563,8 @@ impl Page for OptionsPage {
                     }
                     Key::Character("q") | Key::Named(Escape) => {
                         self.config.theme = self.old_config.theme;
+                        self.config.locale = self.old_config.locale;
+                        set_locale(&self.old_config.locale.to_string().to_lowercase());
                         AppUpdate::Page(Box::new(MainMenuPage {
                             config: mem::take(&mut self.old_config),
                             client: mem::take(&mut self.client),

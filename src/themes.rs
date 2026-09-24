@@ -1,6 +1,7 @@
 use std::{fmt, str::FromStr, sync::LazyLock};
 
 use iced::{Color, Theme, color, theme::Palette};
+use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
@@ -136,30 +137,30 @@ impl fmt::Display for Themes {
             f,
             "{}",
             match self {
-                Self::AniLink => "AniLink",
-                Self::Custom => "Custom",
-                Self::Light => "Light",
-                Self::Dark => "Dark",
-                Self::Dracula => "Dracula",
-                Self::Nord => "Nord",
-                Self::SolarizedLight => "SolarizedLight",
-                Self::SolarizedDark => "SolarizedDark",
-                Self::GruvboxLight => "GruvboxLight",
-                Self::GruvboxDark => "GruvboxDark",
-                Self::CatppuccinLatte => "CatppuccinLatte",
-                Self::CatppuccinFrappe => "CatppuccinFrappe",
-                Self::CatppuccinMacchiato => "CatppuccinMacchiato",
-                Self::CatppuccinMocha => "CatppuccinMocha",
-                Self::TokyoNight => "TokyoNight",
-                Self::TokyoNightStorm => "TokyoNightStorm",
-                Self::TokyoNightLight => "TokyoNightLight",
-                Self::KanagawaWave => "KanagawaWave",
-                Self::KanagawaDragon => "KanagawaDragon",
-                Self::KanagawaLotus => "KanagawaLotus",
-                Self::Moonfly => "Moonfly",
-                Self::Nightfly => "Nightfly",
-                Self::Oxocarbon => "Oxocarbon",
-                Self::Ferra => "Ferra",
+                Self::AniLink => "AniLink".into(),
+                Self::Custom => t!("custom"),
+                Self::Light => "Light".into(),
+                Self::Dark => "Dark".into(),
+                Self::Dracula => "Dracula".into(),
+                Self::Nord => "Nord".into(),
+                Self::SolarizedLight => "SolarizedLight".into(),
+                Self::SolarizedDark => "SolarizedDark".into(),
+                Self::GruvboxLight => "GruvboxLight".into(),
+                Self::GruvboxDark => "GruvboxDark".into(),
+                Self::CatppuccinLatte => "CatppuccinLatte".into(),
+                Self::CatppuccinFrappe => "CatppuccinFrappe".into(),
+                Self::CatppuccinMacchiato => "CatppuccinMacchiato".into(),
+                Self::CatppuccinMocha => "CatppuccinMocha".into(),
+                Self::TokyoNight => "TokyoNight".into(),
+                Self::TokyoNightStorm => "TokyoNightStorm".into(),
+                Self::TokyoNightLight => "TokyoNightLight".into(),
+                Self::KanagawaWave => "KanagawaWave".into(),
+                Self::KanagawaDragon => "KanagawaDragon".into(),
+                Self::KanagawaLotus => "KanagawaLotus".into(),
+                Self::Moonfly => "Moonfly".into(),
+                Self::Nightfly => "Nightfly".into(),
+                Self::Oxocarbon => "Oxocarbon".into(),
+                Self::Ferra => "Ferra".into(),
             }
         )
     }
@@ -174,7 +175,6 @@ impl FromStr for Themes {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "AniLink" => Ok(Self::AniLink),
-            "Custom" => Ok(Self::Custom),
             "Light" => Ok(Self::Light),
             "Dark" => Ok(Self::Dark),
             "Dracula" => Ok(Self::Dracula),
@@ -197,7 +197,7 @@ impl FromStr for Themes {
             "Nightfly" => Ok(Self::Nightfly),
             "Oxocarbon" => Ok(Self::Oxocarbon),
             "Ferra" => Ok(Self::Ferra),
-            _ => Err(ParseThemeError),
+            _ => Ok(Self::Custom),
         }
     }
 }

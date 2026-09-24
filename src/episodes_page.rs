@@ -38,6 +38,7 @@ use itertools::Itertools;
 use libmpv2::Mpv;
 use notify_rust::Notification;
 use reqwest::Client;
+use rust_i18n::t;
 
 const EPISODES_SCROLLABLE_ID: &str = "episodes_scrollable";
 pub const WHITELIST: [&str; 3] = ["mp4upload", "ok.ru", "my.mail.ru"];
@@ -96,17 +97,22 @@ impl Page for EpisodesPage {
                     }),
                     container(
                         rich_text![
-                            span("Subir:").color(self.config.theme().palette().text),
+                            span(format!("{}:", t!("up")))
+                                .color(self.config.theme().palette().text),
                             span(" ↑ K ").color(self.config.theme().palette().primary),
-                            span(" Bajar:").color(self.config.theme().palette().text),
+                            span(format!(" {}:", t!("down")))
+                                .color(self.config.theme().palette().text),
                             span(" ↓ J ").color(self.config.theme().palette().primary),
-                            span(" Confirmar:").color(self.config.theme().palette().text),
+                            span(format!(" {}:", t!("confirm")))
+                                .color(self.config.theme().palette().text),
                             span(" → L Enter ").color(self.config.theme().palette().primary),
-                            span(" Descargar:").color(self.config.theme().palette().text),
+                            span(format!(" {}:", t!("download")))
+                                .color(self.config.theme().palette().text),
                             span(" D ").color(self.config.theme().palette().primary),
                             span(" Syncplay:").color(self.config.theme().palette().text),
                             span(" S ").color(self.config.theme().palette().primary),
-                            span(" Salir:").color(self.config.theme().palette().text),
+                            span(format!(" {}:", t!("exit")))
+                                .color(self.config.theme().palette().text),
                             span(" ← H Esc Q").color(self.config.theme().palette().primary),
                         ]
                         .on_link_click(never)
@@ -200,7 +206,9 @@ impl Page for EpisodesPage {
 
                         let _ = Notification::new()
                             .summary("Ani-link")
-                            .body(format!(r"Añadiendo episodio {episode} de {name} a la cola de descargas...").as_str())
+                            .body(
+                                &t!("downloading-episode", episode = episode, name = name), // format!(r"Añadiendo episodio {episode} de {name} a la cola de descargas...")
+                            )
                             .show()
                             .is_ok();
 
@@ -304,7 +312,9 @@ impl EpisodesPage {
         let success = viewable.into_iter().all(|mirror| {
             let _ = Notification::new()
                 .summary("Ani-link")
-                .body(format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str())
+                .body(
+                    &t!("open-mpv", mirror = mirror), // format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str()
+                )
                 .show()
                 .is_ok();
 
@@ -371,7 +381,7 @@ impl EpisodesPage {
         if !success {
             let _ = Notification::new()
                 .summary("Ani-link")
-                .body("No se ha podido abrir mpv")
+                .body(&t!("error-mpv"))
                 .show()
                 .is_ok();
         }
@@ -405,7 +415,7 @@ fn stream_episode(mirrors: Vec<String>) {
     if !success {
         let _ = Notification::new()
             .summary("Ani-link")
-            .body("No se ha podido abrir syncplay")
+            .body(&t!("error-syncplay"))
             .show()
             .is_ok();
     }

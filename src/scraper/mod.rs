@@ -1,44 +1,34 @@
 use std::{
     error::Error,
-    fmt,
-    str::FromStr,
     sync::{Arc, atomic::AtomicUsize},
 };
 
 use anime::Anime;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use strum_macros::EnumIter;
+use strum_macros::{Display, EnumIter, EnumString};
 
 use crate::scraper::animeav1scraper::AnimeAv1Scraper;
 
 pub mod anime;
 pub mod animeav1scraper;
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct ParseScraperError;
-
-#[derive(Clone, Debug, EnumIter, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(
+    Clone,
+    Debug,
+    EnumIter,
+    EnumString,
+    Display,
+    Copy,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Default,
+)]
 pub enum ScraperImpl {
     #[default]
     AnimeAv1Scraper,
-}
-
-impl FromStr for ScraperImpl {
-    type Err = ParseScraperError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "AnimeAv1Scraper" => Ok(Self::AnimeAv1Scraper),
-            _ => Err(ParseScraperError {}),
-        }
-    }
-}
-
-impl fmt::Display for ScraperImpl {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
-    }
 }
 
 impl ScraperImpl {

@@ -22,6 +22,7 @@ use notify_rust::Notification;
 use rayon::prelude::*;
 use reqwest::Client;
 use rust_fuzzy_search::fuzzy_compare;
+use rust_i18n::t;
 use std::{
     env::temp_dir,
     fs::{create_dir_all, write},
@@ -74,7 +75,7 @@ impl Page for SearchPage {
         column![
             square_box(
                 column![
-                    text_input("Buscar...", &self.query)
+                    text_input(&format!("{}...", t!("anime")), &self.query)
                         .id(Id::new(SEARCH_BAR_ID))
                         .style(move |theme: &iced::Theme, _| text_input::Style {
                             background: iced::Background::Color(theme.palette().background),
@@ -117,19 +118,25 @@ impl Page for SearchPage {
                         }),
                         container(
                             rich_text![
-                                span("Subir:").color(self.config.theme().palette().text),
+                                span(format!("{}:", t!("up")))
+                                    .color(self.config.theme().palette().text),
                                 span(" ↑ K ").color(self.config.theme().palette().primary),
-                                span(" Bajar:").color(self.config.theme().palette().text),
+                                span(format!(" {}:", t!("down")))
+                                    .color(self.config.theme().palette().text),
                                 span(" ↓ J ").color(self.config.theme().palette().primary),
-                                span(" Confirmar:").color(self.config.theme().palette().text),
+                                span(format!(" {}:", t!("confirm")))
+                                    .color(self.config.theme().palette().text),
                                 span(" → L Enter ").color(self.config.theme().palette().primary),
-                                span(" Buscar:").color(self.config.theme().palette().text),
+                                span(format!(" {}:", t!("search")))
+                                    .color(self.config.theme().palette().text),
                                 span(" F / ").color(self.config.theme().palette().primary),
-                                span(" Descargar:").color(self.config.theme().palette().text),
+                                span(format!(" {}:", t!("download")))
+                                    .color(self.config.theme().palette().text),
                                 span(" D ").color(self.config.theme().palette().primary),
                                 span(" Syncplay:").color(self.config.theme().palette().text),
                                 span(" S ").color(self.config.theme().palette().primary),
-                                span(" Salir:").color(self.config.theme().palette().text),
+                                span(format!(" {}:", t!("exit")))
+                                    .color(self.config.theme().palette().text),
                                 span(" ← H Esc Q").color(self.config.theme().palette().primary),
                             ]
                             .on_link_click(never)
@@ -322,12 +329,15 @@ impl Page for SearchPage {
                         let _ = Notification::new()
                             .summary("Ani-link")
                             .body(
-                                format!(
-                                    r"Añadiendo {} episodios de {} a la cola de descargas...",
-                                    episodes.len(),
-                                    anime.names[0]
-                                )
-                                .as_str(),
+                                &t!(
+                                    "downloading-anime",
+                                    count = episodes.len(),
+                                    name = anime.names[0]
+                                ), // format!(
+                                   //     r"Añadiendo {} episodios de {} a la cola de descargas...",
+                                   //     episodes.len(),
+                                   //     anime.names[0]
+                                   // )
                             )
                             .show()
                             .is_ok();
@@ -354,7 +364,7 @@ impl Page for SearchPage {
                         AppUpdate::Page(Box::new(MainMenuPage {
                             config: mem::take(&mut self.config),
                             client: mem::take(&mut self.client),
-                            selection: Selection::Search,
+                            selection: Selection::Anime,
                             anime_list: ListQueryState::Obtained(
                                 mem::take(&mut self.anime_list),
                                 Arc::new(AtomicUsize::new(self.config.scraper.pages())),
@@ -501,7 +511,7 @@ impl SearchPage {
         if !success {
             let _ = Notification::new()
                 .summary("Ani-link")
-                .body("No se ha podido abrir syncplay")
+                .body(&t!("error-syncplay"))
                 .show()
                 .is_ok();
         }

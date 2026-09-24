@@ -1,0 +1,101 @@
+_version: 2
+accent-color:
+  en: Accent color
+  es: Color de acento
+anime:
+  en: Anime
+  es: Anime
+bg-color:
+  en: Background color
+  es: Color de fondo
+blue:
+  en: blue
+  es: azul
+colorscheme:
+  en: Colorscheme
+  es: Esquema de colores
+confirm:
+  en: Confirm
+  es: Confirmar
+custom:
+  en: Custom
+  es: Personalizado
+dont-save:
+  en: Quit without saving
+  es: Salir sin guardar
+down:
+  en: Down
+  es: Bajar
+download:
+  en: Download
+  es: Descargar
+download-progress:
+  en: Downloading %{name} episode %{episode}...
+  es: Descargando %{name} episodio %{episode}...
+downloaded-episode:
+  en: Episode %{episode} of %{name} downloaded successfully
+  es: Episodio %{episode} de %{name} descargado correctamente
+downloading-anime:
+  en: Pushing %{count} episodes from %{name} to the download queue...
+  es: Añadiendo %{count} episodios de %{name} a la cola de descargas...
+downloading-episode:
+  en: Downloading episode %{episode} from %{name}...
+  es: Descargando episodio %{episode} de %{name}...
+error-downloading-episode:
+  en: Couldn't download episode %{episode} from ${name}
+  es: No se ha podido descargar el episodio %{episode} de %{name}
+error-mpv:
+  en: Couldn't open mpv
+  es: No se ha podido abrir mpv
+error-syncplay:
+  en: Couldn't open syncplay
+  es: No se ha podido abrir syncplay
+exit:
+  en: Exit
+  es: Salir
+fetching:
+  en: Fetching
+  es: Cargando
+fg-color:
+  en: Text color
+  es: Color de texto
+green:
+  en: green
+  es: verde
+locale:
+  en: Language
+  es: Idioma
+next:
+  en: Next
+  es: Siguiente
+opacity:
+  en: opacity
+  es: opacidad
+open-mpv:
+  en: Opening "%{mirror}" in mpv, please wait...
+  es: Abriendo "%{mirror}" en mpv, por favor, espera...
+options:
+  en: Options
+  es: Opciones
+previous:
+  en: Previous
+  es: Anterior
+red:
+  en: red
+  es: rojo
+save:
+  en: Save
+  es: Guardar
+save-on-quit:
+  en: Save progress on quit
+  es: Guardar progreso al salir
+scraper:
+  en: Scraper
+  es: Scraper
+search:
+  en: Search
+  es: Buscar
+up:
+  en: Up
+  es: Subir
+

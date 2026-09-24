@@ -16,6 +16,7 @@ use itertools::Itertools;
 use notify_rust::Notification;
 use regex::Regex;
 use reqwest::Client;
+use rust_i18n::t;
 use tokio::runtime::Handle;
 
 use crate::{
@@ -102,7 +103,9 @@ impl Default for App {
 
                 let _ = Notification::new()
                     .summary("Ani-link")
-                    .body(format!(r"Descargando episodio {episode} de {name}...").as_str())
+                    .body(
+                        &t!("downloading-episode", episode = episode, name = name), // format!(r"Descargando episodio {episode} de {name}...").as_str()
+                    )
                     .show()
                     .is_ok();
 
@@ -158,17 +161,21 @@ impl Default for App {
                 if success {
                     let _ = Notification::new()
                         .summary("Ani-link")
-                        .body(&format!(
-                            "Episodio {episode} de {name} descargado correctamente"
-                        ))
+                        .body(
+                            &t!("downloaded-episode", episode = episode, name = name), //     &format!(
+                                                                                       //     "Episodio {episode} de {name} descargado correctamente"
+                                                                                       // )
+                        )
                         .show()
                         .is_ok();
                 } else {
                     let _ = Notification::new()
                         .summary("Ani-link")
-                        .body(&format!(
-                            "No se ha podido descargar el episodio {episode} de {name}"
-                        ))
+                        .body(
+                            &t!("error-downloading-episode", episode = episode, name = name), //     &format!(
+                                                                                              //     "No se ha podido descargar el episodio {episode} de {name}"
+                                                                                              // )
+                        )
                         .show()
                         .is_ok();
                 }
@@ -182,7 +189,7 @@ impl Default for App {
             page: Box::new(MainMenuPage {
                 config: config2,
                 client: client2,
-                selection: main_menu_page::Selection::Search,
+                selection: main_menu_page::Selection::Anime,
                 anime_list,
                 waiting: false,
             }),
@@ -221,7 +228,13 @@ impl App {
                         Space::new().height(Length::Fill),
                         square_box(
                             column![
-                                text(format!("{} episodio {}", current.name, current.episode)),
+                                text(
+                                    t!(
+                                        "download-progress",
+                                        name = current.name,
+                                        episode = current.episode
+                                    ) // format!("{} episodio {}", current.name, current.episode)
+                                ),
                                 row![
                                     progress_bar(0.0..=100.0, progress),
                                     Space::new().width(Length::Fixed(3.0)),
