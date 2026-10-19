@@ -152,7 +152,6 @@ impl Scraper for AnimeAv1Scraper {
             .ok_or("Sub section not found")?
             .as_str();
 
-        // Then find all URLs within the embeds section
         let url_re = Regex::new(r#"url:\s*"([^"]+)"#)?;
         let mirrors: Vec<String> = url_re
             .captures_iter(sub_section)

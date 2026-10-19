@@ -328,17 +328,11 @@ impl Page for SearchPage {
 
                         let _ = Notification::new()
                             .summary("Ani-link")
-                            .body(
-                                &t!(
-                                    "downloading-anime",
-                                    count = episodes.len(),
-                                    name = anime.names[0]
-                                ), // format!(
-                                   //     r"Añadiendo {} episodios de {} a la cola de descargas...",
-                                   //     episodes.len(),
-                                   //     anime.names[0]
-                                   // )
-                            )
+                            .body(&t!(
+                                "downloading-anime",
+                                count = episodes.len(),
+                                name = anime.names[0]
+                            ))
                             .show()
                             .is_ok();
 
@@ -381,15 +375,14 @@ impl Page for SearchPage {
     }
 
     fn subscription(&self) -> iced::Subscription<crate::app::Message> {
-        Subscription::batch(vec![
-            // iced::time::every(Duration::from_millis(100)).map(|_| app::Message::Update),
-            event::listen_with(move |event, status, _| match (event, status) {
+        Subscription::batch(vec![event::listen_with(move |event, status, _| {
+            match (event, status) {
                 (Event::Keyboard(KeyPressed { key, .. }), Status::Ignored) => {
                     Some(app::Message::Search(Message::KeyPressed(key)))
                 }
                 _ => None,
-            }),
-        ])
+            }
+        })])
     }
 
     fn theme(&self) -> iced::Theme {

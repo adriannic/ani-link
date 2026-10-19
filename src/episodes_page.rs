@@ -206,9 +206,7 @@ impl Page for EpisodesPage {
 
                         let _ = Notification::new()
                             .summary("Ani-link")
-                            .body(
-                                &t!("downloading-episode", episode = episode, name = name), // format!(r"Añadiendo episodio {episode} de {name} a la cola de descargas...")
-                            )
+                            .body(&t!("downloading-episode", episode = episode, name = name))
                             .show()
                             .is_ok();
 
@@ -312,9 +310,7 @@ impl EpisodesPage {
         let success = viewable.into_iter().all(|mirror| {
             let _ = Notification::new()
                 .summary("Ani-link")
-                .body(
-                    &t!("open-mpv", mirror = mirror), // format!(r#"Abriendo "{mirror}" en mpv, por favor, espera."#).as_str()
-                )
+                .body(&t!("open-mpv", mirror = mirror))
                 .show()
                 .is_ok();
 

@@ -9,7 +9,8 @@ use std::{
 
 use dirs::video_dir;
 use iced::{
-    Font, Length, Settings, Task,
+    Font, Length, Settings, Subscription, Task,
+    time::{self, Duration},
     widget::{Space, column, container, progress_bar, row, stack, text},
 };
 use itertools::Itertools;
@@ -103,9 +104,7 @@ impl Default for App {
 
                 let _ = Notification::new()
                     .summary("Ani-link")
-                    .body(
-                        &t!("downloading-episode", episode = episode, name = name), // format!(r"Descargando episodio {episode} de {name}...").as_str()
-                    )
+                    .body(&t!("downloading-episode", episode = episode, name = name))
                     .show()
                     .is_ok();
 
@@ -161,21 +160,17 @@ impl Default for App {
                 if success {
                     let _ = Notification::new()
                         .summary("Ani-link")
-                        .body(
-                            &t!("downloaded-episode", episode = episode, name = name), //     &format!(
-                                                                                       //     "Episodio {episode} de {name} descargado correctamente"
-                                                                                       // )
-                        )
+                        .body(&t!("downloaded-episode", episode = episode, name = name))
                         .show()
                         .is_ok();
                 } else {
                     let _ = Notification::new()
                         .summary("Ani-link")
-                        .body(
-                            &t!("error-downloading-episode", episode = episode, name = name), //     &format!(
-                                                                                              //     "No se ha podido descargar el episodio {episode} de {name}"
-                                                                                              // )
-                        )
+                        .body(&t!(
+                            "error-downloading-episode",
+                            episode = episode,
+                            name = name
+                        ))
                         .show()
                         .is_ok();
                 }
@@ -228,13 +223,11 @@ impl App {
                         Space::new().height(Length::Fill),
                         square_box(
                             column![
-                                text(
-                                    t!(
-                                        "download-progress",
-                                        name = current.name,
-                                        episode = current.episode
-                                    ) // format!("{} episodio {}", current.name, current.episode)
-                                ),
+                                text(t!(
+                                    "download-progress",
+                                    name = current.name,
+                                    episode = current.episode
+                                )),
                                 row![
                                     progress_bar(0.0..=100.0, progress),
                                     Space::new().width(Length::Fixed(3.0)),
@@ -292,6 +285,19 @@ impl App {
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
-        self.page.subscription()
+        let mut subscriptions = vec![self.page.subscription()];
+        if self.download.current().is_some() {
+            subscriptions.push(time::every(Duration::from_millis(100)).map(|_| Message::Update));
+        }
+
+        Subscription::batch(subscriptions)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn testing() {
+        println!("hello world!");
     }
 }
